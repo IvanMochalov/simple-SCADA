@@ -4,3 +4,4 @@ server/data.db-journal
 .env
 *.log
 .DS_Store
+.idea
