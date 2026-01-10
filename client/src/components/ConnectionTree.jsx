@@ -92,30 +92,6 @@ export default function ConnectionTree() {
     }
   }
 
-  const handleReconnectDevice = async (deviceId) => {
-    try {
-      await api.reconnectDeviceById(deviceId)
-      await loadNodes()
-      refreshState()
-    } catch (error) {
-      console.error('Error reconnecting device:', error)
-      alert(error.response?.data?.error || 'Ошибка при переподключении устройства')
-    }
-  }
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'connected':
-        return '#27ae60'
-      case 'disconnected':
-        return '#e74c3c'
-      case 'error':
-        return '#f39c12'
-      default:
-        return '#95a5a6'
-    }
-  }
-
   const getStatusText = (status) => {
     switch (status) {
       case 'connected':
@@ -210,23 +186,7 @@ export default function ConnectionTree() {
                             {expandedDevices.has(device.id) ? '▼' : '▶'}
                           </span>
                           <span className="device-name">{device.name}</span>
-                          <span
-                            className="device-status"
-                            style={{color: getStatusColor(device.status)}}
-                          >
-                            {getStatusText(device.status)}
-                          </span>
                           <div className="device-actions">
-                            <button
-                              className="btn-icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleReconnectDevice(device.id)
-                              }}
-                              title="Переподключить"
-                            >
-                              🔄
-                            </button>
                             <button
                               className="btn-icon"
                               onClick={(e) => {

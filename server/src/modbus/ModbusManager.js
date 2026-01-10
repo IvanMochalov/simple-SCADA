@@ -14,18 +14,18 @@ export class ModbusManager {
   async start() {
     if (this.isRunning) return;
     this.isRunning = true;
-    
+
     console.log('Starting Modbus Manager...');
-    
+
     // Загружаем все активные узлы связи
     const nodes = await this.prisma.connectionNode.findMany({
-      where: { enabled: true },
+      where: {enabled: true},
       include: {
         devices: {
-          where: { enabled: true },
+          where: {enabled: true},
           include: {
             tags: {
-              where: { enabled: true }
+              where: {enabled: true}
             }
           }
         }
@@ -38,7 +38,11 @@ export class ModbusManager {
 
     // Запускаем сбор исторических данных каждую минуту
     this.historyInterval = setInterval(() => {
-      this.collectHistoryData();
+      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node => node.enabled && node.devices.some(device => device.enabled && device.tags.some(tag => tag.enabled)));
+
+      if (isSomeNodeHasDeviceWithTagEnabled) {
+        this.collectHistoryData();
+      }
     }, 60000); // 60 секунд
 
     console.log('Modbus Manager started');
@@ -82,7 +86,7 @@ export class ModbusManager {
       console.log(`Starting connection for node ${node.name} (${node.comPort})`);
 
       const client = new ModbusRTU();
-      
+
       // Используем connectRTUBuffered для подключения к COM порту
       // modbus-serial сам создаст и откроет SerialPort
       await client.connectRTUBuffered(node.comPort, {
@@ -103,7 +107,7 @@ export class ModbusManager {
 
       // Запускаем опрос только для устройств со статусом connected
       const connectedDevices = node.devices.filter(device => device.status === 'connected');
-      
+
       for (const device of node.devices) {
         connection.devices.set(device.id, device);
       }
@@ -122,7 +126,7 @@ export class ModbusManager {
       console.log(`Connection started for node ${node.name}`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
-      
+
       // Обрабатываем специфичные ошибки
       let errorMessage = error.message;
       if (error.message && error.message.includes('Access denied')) {
@@ -130,7 +134,7 @@ export class ModbusManager {
       } else if (error.message && error.message.includes('cannot open')) {
         errorMessage = 'Не удалось открыть COM порт. Проверьте, что порт существует и доступен.';
       }
-      
+
       // Обновляем статус всех устройств этого узла
       for (const device of node.devices) {
         await this.updateDeviceStatus(device.id, 'error', errorMessage);
@@ -181,7 +185,7 @@ export class ModbusManager {
     }, device.pollInterval);
 
     this.pollingIntervals.set(device.id, interval);
-    
+
     // Сразу делаем первый опрос
     this.pollDevice(device, client);
   }
@@ -198,10 +202,10 @@ export class ModbusManager {
     try {
       // Загружаем актуальные теги устройства
       const deviceWithTags = await this.prisma.device.findUnique({
-        where: { id: device.id },
+        where: {id: device.id},
         include: {
           tags: {
-            where: { enabled: true }
+            where: {enabled: true}
           }
         }
       });
@@ -286,12 +290,12 @@ export class ModbusManager {
 
         } catch (tagError) {
           console.error(`Error reading tag ${tag.name} from device ${device.name}:`, tagError);
-          
+
           // Проверяем, является ли ошибка TransactionTimedOutError
           if (tagError.name !== 'TransactionTimedOutError') {
             allTagsTimeout = false;
           }
-          
+
           tagValues[tag.id] = {
             tagId: tag.id,
             tagName: tag.name,
@@ -304,13 +308,13 @@ export class ModbusManager {
 
       // Проверяем текущий статус устройства перед обновлением
       const currentDevice = await this.prisma.device.findUnique({
-        where: { id: device.id },
-        select: { status: true }
+        where: {id: device.id},
+        select: {status: true}
       });
-      
+
       const oldStatus = currentDevice?.status || 'unknown';
       let newStatus;
-      
+
       // Обновляем статус устройства
       if (allTagsTimeout && !hasSuccessfulReads) {
         newStatus = 'disconnected';
@@ -321,7 +325,7 @@ export class ModbusManager {
         newStatus = 'connected';
         await this.updateDeviceStatus(device.id, newStatus, null);
       }
-      
+
       // Уведомляем клиентов об изменении статуса устройства
       if (oldStatus !== newStatus) {
         this.broadcastStateUpdate();
@@ -355,7 +359,7 @@ export class ModbusManager {
       }
       return rawValue;
     }
-    
+
     // Для других типов пока возвращаем как есть
     return rawValue;
   }
@@ -363,7 +367,7 @@ export class ModbusManager {
   async updateDeviceStatus(deviceId, status, errorMessage) {
     try {
       await this.prisma.device.update({
-        where: { id: deviceId },
+        where: {id: deviceId},
         data: {
           status,
           lastPollTime: new Date()
@@ -377,13 +381,13 @@ export class ModbusManager {
   async collectHistoryData() {
     try {
       console.log('Collecting history data...');
-      
+
       // Получаем все активные устройства с тегами
       const devices = await this.prisma.device.findMany({
-        where: { enabled: true, status: 'connected' },
+        where: {enabled: true, status: 'connected'},
         include: {
           tags: {
-            where: { enabled: true }
+            where: {enabled: true}
           }
         }
       });
@@ -502,15 +506,15 @@ export class ModbusManager {
 
   async reloadConnection(nodeId) {
     await this.stopConnection(nodeId);
-    
+
     const node = await this.prisma.connectionNode.findUnique({
-      where: { id: nodeId },
+      where: {id: nodeId},
       include: {
         devices: {
-          where: { enabled: true },
+          where: {enabled: true},
           include: {
             tags: {
-              where: { enabled: true }
+              where: {enabled: true}
             }
           }
         }
@@ -526,11 +530,11 @@ export class ModbusManager {
     try {
       // Находим устройство с узлом связи
       const device = await this.prisma.device.findUnique({
-        where: { id: deviceId },
+        where: {id: deviceId},
         include: {
           connectionNode: true,
           tags: {
-            where: { enabled: true }
+            where: {enabled: true}
           }
         }
       });
@@ -553,10 +557,10 @@ export class ModbusManager {
 
       // Если после опроса устройство стало connected, запускаем постоянный опрос
       const updatedDevice = await this.prisma.device.findUnique({
-        where: { id: deviceId },
+        where: {id: deviceId},
         include: {
           tags: {
-            where: { enabled: true }
+            where: {enabled: true}
           }
         }
       });
@@ -570,7 +574,7 @@ export class ModbusManager {
         }
       }
 
-      return { success: true, status: updatedDevice?.status };
+      return {success: true, status: updatedDevice?.status};
     } catch (error) {
       console.error(`Error reconnecting device ${deviceId}:`, error);
       throw error;

@@ -5,6 +5,7 @@ import {WS_BASE, BASE} from "./src/services/api.js";
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: true,
     port: 5173,
     proxy: {
       '/api': {
