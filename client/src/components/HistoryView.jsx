@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import { useWebSocket } from '../context/WebSocketContext'
+import React, {useState, useEffect} from 'react'
+import {useWebSocket} from '../context/WebSocketContext'
 import './HistoryView.css'
+import {api} from "../services/api.js";
 
 export default function HistoryView() {
-  const { state } = useWebSocket()
+  const {state} = useWebSocket()
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [selectedTag, setSelectedTag] = useState(null)
   const [history, setHistory] = useState([])
@@ -29,7 +29,7 @@ export default function HistoryView() {
 
     setLoading(true)
     try {
-      const response = await axios.get(`http://localhost:3001/api/history/tag/${selectedTag}`, {
+      const response = await api.getHistoryTagById(selectedTag, {
         params: {
           startTime: new Date(startTime).toISOString(),
           endTime: new Date(endTime).toISOString(),
@@ -66,9 +66,9 @@ export default function HistoryView() {
 
   state.nodes.forEach(node => {
     node.devices.forEach(device => {
-      allDevices.push({ ...device, nodeName: node.name })
+      allDevices.push({...device, nodeName: node.name})
       device.tags.forEach(tag => {
-        allTags.push({ ...tag, deviceName: device.name, deviceId: device.id })
+        allTags.push({...tag, deviceName: device.name, deviceId: device.id})
       })
     })
   })
@@ -160,18 +160,18 @@ export default function HistoryView() {
         <div className="history-table-container">
           <table className="history-table">
             <thead>
-              <tr>
-                <th>Время</th>
-                <th>Значение</th>
-              </tr>
+            <tr>
+              <th>Время</th>
+              <th>Значение</th>
+            </tr>
             </thead>
             <tbody>
-              {history.map(record => (
-                <tr key={record.id}>
-                  <td>{formatDate(record.timestamp)}</td>
-                  <td className="value-cell">{record.value}</td>
-                </tr>
-              ))}
+            {history.map(record => (
+              <tr key={record.id}>
+                <td>{formatDate(record.timestamp)}</td>
+                <td className="value-cell">{record.value}</td>
+              </tr>
+            ))}
             </tbody>
           </table>
         </div>

@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import { useWebSocket } from '../context/WebSocketContext'
-import axios from 'axios'
+import React, {useState} from 'react'
+import {useWebSocket} from '../context/WebSocketContext'
 import './RealTimeView.css'
+import {api} from "../services/api.js";
 
 export default function RealTimeView() {
-  const { state, tagValues, isConnected } = useWebSocket()
+  const {state, tagValues, isConnected} = useWebSocket()
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const [expandedDevices, setExpandedDevices] = useState(new Set())
 
@@ -30,19 +30,27 @@ export default function RealTimeView() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'connected': return '#27ae60'
-      case 'disconnected': return '#e74c3c'
-      case 'error': return '#f39c12'
-      default: return '#95a5a6'
+      case 'connected':
+        return '#27ae60'
+      case 'disconnected':
+        return '#e74c3c'
+      case 'error':
+        return '#f39c12'
+      default:
+        return '#95a5a6'
     }
   }
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'connected': return 'Подключено'
-      case 'disconnected': return 'Отключено'
-      case 'error': return 'Ошибка'
-      default: return 'Неизвестно'
+      case 'connected':
+        return 'Подключено'
+      case 'disconnected':
+        return 'Отключено'
+      case 'error':
+        return 'Ошибка'
+      default:
+        return 'Неизвестно'
     }
   }
 
@@ -55,7 +63,7 @@ export default function RealTimeView() {
 
   const handleReconnectDevice = async (deviceId) => {
     try {
-      await axios.post(`http://localhost:3001/api/devices/${deviceId}/reconnect`)
+      await api.reconnectDeviceById(deviceId)
       // Состояние обновится автоматически через WebSocket
     } catch (error) {
       console.error('Error reconnecting device:', error)
@@ -86,7 +94,7 @@ export default function RealTimeView() {
   return (
     <div className="realtime-view">
       <h2>Значения тегов в реальном времени</h2>
-      
+
       <div className="realtime-container">
         {state.nodes.map(node => (
           <div key={node.id} className="realtime-node">
@@ -108,14 +116,15 @@ export default function RealTimeView() {
                   node.devices.map(device => (
                     <div key={device.id} className="realtime-device">
                       <div className="device-header">
-                        <div onClick={() => toggleDevice(device.id)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer' }}>
+                        <div onClick={() => toggleDevice(device.id)}
+                             style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer'}}>
                           <span className="expand-icon">
                             {expandedDevices.has(device.id) ? '▼' : '▶'}
                           </span>
                           <span className="device-name">{device.name}</span>
-                          <span 
+                          <span
                             className="device-status"
-                            style={{ color: getStatusColor(device.status) }}
+                            style={{color: getStatusColor(device.status)}}
                           >
                             {getStatusText(device.status)}
                           </span>

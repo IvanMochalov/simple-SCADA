@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite'
+import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
+import {WS_BASE, BASE} from "./src/services/api.js";
 
 export default defineConfig({
   plugins: [react()],
@@ -7,11 +8,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: BASE,
         changeOrigin: true
       },
       '/ws': {
-        target: 'ws://localhost:3001',
+        target: WS_BASE,
         ws: true
       }
     }

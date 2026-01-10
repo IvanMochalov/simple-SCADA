@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import React, {useState, useEffect} from 'react'
 import './Form.css'
+import {api} from "../services/api.js";
 
-export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
+export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
   const [formData, setFormData] = useState({
     name: '',
     type: 'COM_RTU_MASTER',
@@ -23,7 +23,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
 
   const loadNode = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/connections/${nodeId}`)
+      const response = await api.getNodeById(nodeId)
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading node:', error)
@@ -37,9 +37,9 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
 
     try {
       if (nodeId) {
-        await axios.put(`http://localhost:3001/api/connections/${nodeId}`, formData)
+        await api.updateNodeById(nodeId, formData)
       } else {
-        await axios.post('http://localhost:3001/api/connections', formData)
+        await api.createNode(formData)
       }
       onSave()
     } catch (error) {
@@ -64,7 +64,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
           </div>
@@ -74,7 +74,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <input
               type="text"
               value={formData.comPort}
-              onChange={(e) => setFormData({ ...formData, comPort: e.target.value })}
+              onChange={(e) => setFormData({...formData, comPort: e.target.value})}
               required
             />
           </div>
@@ -83,7 +83,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <label>Скорость (бод)</label>
             <select
               value={formData.baudRate}
-              onChange={(e) => setFormData({ ...formData, baudRate: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, baudRate: parseInt(e.target.value)})}
             >
               <option value={9600}>9600</option>
               <option value={19200}>19200</option>
@@ -97,7 +97,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <label>Биты данных</label>
             <select
               value={formData.dataBits}
-              onChange={(e) => setFormData({ ...formData, dataBits: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, dataBits: parseInt(e.target.value)})}
             >
               <option value={7}>7</option>
               <option value={8}>8</option>
@@ -108,7 +108,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <label>Стоп-биты</label>
             <select
               value={formData.stopBits}
-              onChange={(e) => setFormData({ ...formData, stopBits: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, stopBits: parseInt(e.target.value)})}
             >
               <option value={1}>1</option>
               <option value={2}>2</option>
@@ -119,7 +119,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
             <label>Четность</label>
             <select
               value={formData.parity}
-              onChange={(e) => setFormData({ ...formData, parity: e.target.value })}
+              onChange={(e) => setFormData({...formData, parity: e.target.value})}
             >
               <option value="none">Нет</option>
               <option value="even">Четная</option>
@@ -132,7 +132,7 @@ export default function ConnectionNodeForm({ nodeId, onClose, onSave }) {
               <input
                 type="checkbox"
                 checked={formData.enabled}
-                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
               />
               Включено
             </label>

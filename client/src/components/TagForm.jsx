@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, {useState, useEffect} from 'react'
 import axios from 'axios'
 import './Form.css'
+import {api} from "../services/api.js";
 
-export default function TagForm({ deviceId, onClose, onSave }) {
+export default function TagForm({deviceId, onClose, onSave}) {
   const [formData, setFormData] = useState({
     deviceId: deviceId || '',
     name: '',
@@ -17,7 +18,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
 
   useEffect(() => {
     if (deviceId) {
-      setFormData(prev => ({ ...prev, deviceId }))
+      setFormData(prev => ({...prev, deviceId}))
     }
   }, [deviceId])
 
@@ -27,9 +28,9 @@ export default function TagForm({ deviceId, onClose, onSave }) {
 
     try {
       if (formData.id) {
-        await axios.put(`http://localhost:3001/api/tags/${formData.id}`, formData)
+        await api.updateTagById(formData.id, formData)
       } else {
-        await axios.post('http://localhost:3001/api/tags', formData)
+        await api.createTag(formData)
       }
       onSave()
     } catch (error) {
@@ -54,7 +55,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
           </div>
@@ -66,7 +67,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
               min="0"
               max="65535"
               value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, address: parseInt(e.target.value)})}
               required
             />
           </div>
@@ -75,7 +76,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
             <label>Тип регистра</label>
             <select
               value={formData.registerType}
-              onChange={(e) => setFormData({ ...formData, registerType: e.target.value })}
+              onChange={(e) => setFormData({...formData, registerType: e.target.value})}
             >
               <option value="HOLDING_REGISTER">Holding Register</option>
               <option value="INPUT_REGISTER">Input Register</option>
@@ -88,7 +89,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
             <label>Тип данных в устройстве</label>
             <select
               value={formData.deviceDataType}
-              onChange={(e) => setFormData({ ...formData, deviceDataType: e.target.value })}
+              onChange={(e) => setFormData({...formData, deviceDataType: e.target.value})}
             >
               <option value="int16">int16</option>
               <option value="int32">int32</option>
@@ -102,7 +103,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
             <label>Тип данных в сервере</label>
             <select
               value={formData.serverDataType}
-              onChange={(e) => setFormData({ ...formData, serverDataType: e.target.value })}
+              onChange={(e) => setFormData({...formData, serverDataType: e.target.value})}
             >
               <option value="int32">int32</option>
               <option value="int16">int16</option>
@@ -116,7 +117,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
             <label>Тип доступа</label>
             <select
               value={formData.accessType}
-              onChange={(e) => setFormData({ ...formData, accessType: e.target.value })}
+              onChange={(e) => setFormData({...formData, accessType: e.target.value})}
             >
               <option value="ReadOnly">Только чтение</option>
               <option value="ReadWrite">Чтение и запись</option>
@@ -128,7 +129,7 @@ export default function TagForm({ deviceId, onClose, onSave }) {
               <input
                 type="checkbox"
                 checked={formData.enabled}
-                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
               />
               Включено
             </label>

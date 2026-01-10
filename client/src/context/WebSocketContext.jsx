@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
+import React, {createContext, useContext, useEffect, useState, useRef} from 'react'
 import axios from 'axios'
+import {API_BASE, HOST} from "../services/api.js";
 
 const WebSocketContext = createContext(null)
 
-export function WebSocketProvider({ children }) {
+export function WebSocketProvider({children}) {
   const [ws, setWs] = useState(null)
   const [isConnected, setIsConnected] = useState(false)
   const [state, setState] = useState(null)
@@ -26,7 +27,7 @@ export function WebSocketProvider({ children }) {
   const connectWebSocket = () => {
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.hostname}:3001`
+      const wsUrl = `${protocol}//${HOST}:3001`
       const websocket = new WebSocket(wsUrl)
 
       websocket.onopen = () => {
@@ -41,14 +42,14 @@ export function WebSocketProvider({ children }) {
       websocket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data)
-          
+
           if (message.type === 'state') {
             // Обновляем состояние - клиент автоматически перерисует компоненты
             setState(message.data)
             console.log('State updated from server:', message.data)
           } else if (message.type === 'tagValues') {
             setTagValues(prev => {
-              const newValues = { ...prev }
+              const newValues = {...prev}
               if (!newValues[message.deviceId]) {
                 newValues[message.deviceId] = {}
               }
@@ -70,7 +71,7 @@ export function WebSocketProvider({ children }) {
         console.log('WebSocket disconnected')
         setIsConnected(false)
         wsRef.current = null
-        
+
         // Переподключение через 3 секунды
         reconnectTimeoutRef.current = setTimeout(() => {
           connectWebSocket()
@@ -89,8 +90,8 @@ export function WebSocketProvider({ children }) {
     tagValues,
     refreshState: async () => {
       try {
-        const response = await axios.get('http://localhost:3001/api/connections')
-        setState({ nodes: response.data })
+        const response = await axios.get(`${API_BASE}/connections`)
+        setState({nodes: response.data})
       } catch (error) {
         console.error('Error refreshing state:', error)
       }

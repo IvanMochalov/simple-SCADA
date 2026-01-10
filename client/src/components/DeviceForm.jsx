@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, {useState, useEffect} from 'react'
 import axios from 'axios'
 import './Form.css'
+import {api} from "../services/api.js";
 
-export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
+export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   const [nodes, setNodes] = useState([])
   const [formData, setFormData] = useState({
     connectionNodeId: nodeId || '',
@@ -23,10 +24,10 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
 
   const loadNodes = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/connections')
+      const response = await api.getAllNodes()
       setNodes(response.data)
       if (!nodeId && response.data.length > 0) {
-        setFormData(prev => ({ ...prev, connectionNodeId: response.data[0].id }))
+        setFormData(prev => ({...prev, connectionNodeId: response.data[0].id}))
       }
     } catch (error) {
       console.error('Error loading nodes:', error)
@@ -35,7 +36,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
 
   const loadDevice = async () => {
     try {
-      const response = await axios.get(`http://localhost:3001/api/devices/${deviceId}`)
+      const response = await api.getDeviceById(deviceId)
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading device:', error)
@@ -49,9 +50,9 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
 
     try {
       if (deviceId) {
-        await axios.put(`http://localhost:3001/api/devices/${deviceId}`, formData)
+        await api.updateDeviceById(deviceId, formData)
       } else {
-        await axios.post('http://localhost:3001/api/devices', formData)
+        await api.createDevice(formData)
       }
       onSave()
     } catch (error) {
@@ -75,7 +76,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
             <label>Узел связи</label>
             <select
               value={formData.connectionNodeId}
-              onChange={(e) => setFormData({ ...formData, connectionNodeId: e.target.value })}
+              onChange={(e) => setFormData({...formData, connectionNodeId: e.target.value})}
               required
               disabled={!!nodeId}
             >
@@ -93,7 +94,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) => setFormData({...formData, name: e.target.value})}
               required
             />
           </div>
@@ -105,7 +106,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
               min="0"
               max="255"
               value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, address: parseInt(e.target.value)})}
               required
             />
           </div>
@@ -117,7 +118,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
               min="100"
               step="100"
               value={formData.responseTimeout}
-              onChange={(e) => setFormData({ ...formData, responseTimeout: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, responseTimeout: parseInt(e.target.value)})}
               required
             />
           </div>
@@ -129,7 +130,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
               min="100"
               step="100"
               value={formData.pollInterval}
-              onChange={(e) => setFormData({ ...formData, pollInterval: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({...formData, pollInterval: parseInt(e.target.value)})}
               required
             />
           </div>
@@ -139,7 +140,7 @@ export default function DeviceForm({ deviceId, nodeId, onClose, onSave }) {
               <input
                 type="checkbox"
                 checked={formData.enabled}
-                onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
+                onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
               />
               Включено
             </label>

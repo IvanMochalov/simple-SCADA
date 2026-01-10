@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
-import { useWebSocket } from '../context/WebSocketContext'
+import React, {useState, useEffect} from 'react'
+import {useWebSocket} from '../context/WebSocketContext'
 import ConnectionNodeForm from './ConnectionNodeForm'
 import DeviceForm from './DeviceForm'
 import TagForm from './TagForm'
 import './ConnectionTree.css'
+import {api} from "../services/api.js";
 
 export default function ConnectionTree() {
-  const { state, refreshState } = useWebSocket()
+  const {state, refreshState} = useWebSocket()
   const [nodes, setNodes] = useState([])
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const [expandedDevices, setExpandedDevices] = useState(new Set())
@@ -29,7 +29,7 @@ export default function ConnectionTree() {
 
   const loadNodes = async () => {
     try {
-      const response = await axios.get('http://localhost:3001/api/connections')
+      const response = await api.getAllNodes()
       setNodes(response.data)
     } catch (error) {
       console.error('Error loading nodes:', error)
@@ -59,7 +59,7 @@ export default function ConnectionTree() {
   const handleDeleteNode = async (nodeId) => {
     if (!confirm('Удалить узел связи?')) return
     try {
-      await axios.delete(`http://localhost:3001/api/connections/${nodeId}`)
+      await api.removeNodeById(nodeId)
       await loadNodes()
       refreshState()
     } catch (error) {
@@ -71,7 +71,7 @@ export default function ConnectionTree() {
   const handleDeleteDevice = async (deviceId, nodeId) => {
     if (!confirm('Удалить устройство?')) return
     try {
-      await axios.delete(`http://localhost:3001/api/devices/${deviceId}`)
+      await api.removeDeviceById(deviceId)
       await loadNodes()
       refreshState()
     } catch (error) {
@@ -83,7 +83,7 @@ export default function ConnectionTree() {
   const handleDeleteTag = async (tagId, deviceId) => {
     if (!confirm('Удалить тег?')) return
     try {
-      await axios.delete(`http://localhost:3001/api/tags/${tagId}`)
+      await api.removeTagById(tagId)
       await loadNodes()
       refreshState()
     } catch (error) {
@@ -94,7 +94,7 @@ export default function ConnectionTree() {
 
   const handleReconnectDevice = async (deviceId) => {
     try {
-      await axios.post(`http://localhost:3001/api/devices/${deviceId}/reconnect`)
+      await api.reconnectDeviceById(deviceId)
       await loadNodes()
       refreshState()
     } catch (error) {
@@ -105,19 +105,27 @@ export default function ConnectionTree() {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'connected': return '#27ae60'
-      case 'disconnected': return '#e74c3c'
-      case 'error': return '#f39c12'
-      default: return '#95a5a6'
+      case 'connected':
+        return '#27ae60'
+      case 'disconnected':
+        return '#e74c3c'
+      case 'error':
+        return '#f39c12'
+      default:
+        return '#95a5a6'
     }
   }
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'connected': return 'Подключено'
-      case 'disconnected': return 'Отключено'
-      case 'error': return 'Ошибка'
-      default: return 'Неизвестно'
+      case 'connected':
+        return 'Подключено'
+      case 'disconnected':
+        return 'Отключено'
+      case 'error':
+        return 'Ошибка'
+      default:
+        return 'Неизвестно'
     }
   }
 
@@ -125,7 +133,7 @@ export default function ConnectionTree() {
     <div className="connection-tree">
       <div className="tree-header">
         <h2>Конфигурация узлов связи</h2>
-        <button 
+        <button
           className="btn btn-primary"
           onClick={() => {
             setSelectedNodeId(null)
@@ -202,9 +210,9 @@ export default function ConnectionTree() {
                             {expandedDevices.has(device.id) ? '▼' : '▶'}
                           </span>
                           <span className="device-name">{device.name}</span>
-                          <span 
+                          <span
                             className="device-status"
-                            style={{ color: getStatusColor(device.status) }}
+                            style={{color: getStatusColor(device.status)}}
                           >
                             {getStatusText(device.status)}
                           </span>
