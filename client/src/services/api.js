@@ -52,4 +52,14 @@ export const api = {
 
   // PUT /api/tags/:id - Обновить тег
   updateTagById: async (id, requestData) => await axios.put(`${API_BASE}/tags/${id}`, requestData),
+
+  // API MODBUS - Управление Modbus Manager
+  // GET /api/modbus/status - Получить статус Modbus Manager
+  getModbusStatus: async () => await axios.get(`${API_BASE}/modbus/status`),
+
+  // POST /api/modbus/start - Запустить Modbus Manager
+  startModbus: async () => await axios.post(`${API_BASE}/modbus/start`),
+
+  // POST /api/modbus/stop - Остановить Modbus Manager
+  stopModbus: async () => await axios.post(`${API_BASE}/modbus/stop`),
 };

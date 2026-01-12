@@ -8,6 +8,7 @@ import connectionRoutes from './routes/connections.js';
 import deviceRoutes from './routes/devices.js';
 import tagRoutes from './routes/tags.js';
 import historyRoutes from './routes/history.js';
+import modbusRoutes from './routes/modbus.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/connections', connectionRoutes(prisma, modbusManager));
 app.use('/api/devices', deviceRoutes(prisma, modbusManager));
 app.use('/api/tags', tagRoutes(prisma, modbusManager));
 app.use('/api/history', historyRoutes(prisma));
+app.use('/api/modbus', modbusRoutes(modbusManager));
 
 // WebSocket подключения
 wss.on('connection', (ws) => {
@@ -48,8 +50,8 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`WebSocket server ready`);
   
-  // Запускаем Modbus Manager после старта сервера
-  modbusManager.start();
+  // Modbus Manager запускается вручную через API endpoint
+  // modbusManager.start();
 });
 
 // Graceful shutdown

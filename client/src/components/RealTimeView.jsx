@@ -7,6 +7,8 @@ export default function RealTimeView() {
   const {state, tagValues, isConnected} = useWebSocket()
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const [expandedDevices, setExpandedDevices] = useState(new Set())
+  const [isModbusRunning, setIsModbusRunning] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
 
   const toggleNode = (nodeId) => {
     const newExpanded = new Set(expandedNodes)
@@ -61,6 +63,32 @@ export default function RealTimeView() {
     return tagValues[deviceId][tagId]
   }
 
+  // Обновляем статус modbusManager при изменении state
+  React.useEffect(() => {
+    if (state && state.modbusManagerStatus) {
+      setIsModbusRunning(state.modbusManagerStatus.isRunning || false)
+    }
+  }, [state])
+
+  const handleToggleModbus = async () => {
+    if (isToggling) return
+    
+    setIsToggling(true)
+    try {
+      if (isModbusRunning) {
+        await api.stopModbus()
+      } else {
+        await api.startModbus()
+      }
+      // Состояние обновится автоматически через WebSocket
+    } catch (error) {
+      console.error('Error toggling Modbus Manager:', error)
+      alert(error.response?.data?.error || 'Ошибка при управлении Modbus Manager')
+    } finally {
+      setIsToggling(false)
+    }
+  }
+
   const handleReconnectDevice = async (deviceId) => {
     try {
       await api.reconnectDeviceById(deviceId)
@@ -93,7 +121,26 @@ export default function RealTimeView() {
 
   return (
     <div className="realtime-view">
-      <h2>Значения тегов в реальном времени</h2>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+        <h2>Значения тегов в реальном времени</h2>
+        <button
+          onClick={handleToggleModbus}
+          disabled={isToggling || !isConnected}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: isModbusRunning ? '#e74c3c' : '#27ae60',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: isToggling || !isConnected ? 'not-allowed' : 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: 'bold',
+            opacity: isToggling || !isConnected ? 0.6 : 1
+          }}
+        >
+          {isToggling ? '...' : (isModbusRunning ? '⏹ Остановить Modbus Server' : '▶ Запустить Modbus Server')}
+        </button>
+      </div>
 
       <div className="realtime-container">
         {state.nodes.map(node => (

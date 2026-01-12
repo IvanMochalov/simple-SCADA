@@ -113,6 +113,10 @@ npm run dev
 
 ### REST API
 
+- `GET /api/modbus/status` - Получить статус Modbus Manager
+- `POST /api/modbus/start` - Запустить Modbus Manager
+- `POST /api/modbus/stop` - Остановить Modbus Manager
+
 - `GET /api/connections` - Получить все узлы связи
 - `GET /api/connections/:id` - Получить узел связи
 - `POST /api/connections` - Создать узел связи

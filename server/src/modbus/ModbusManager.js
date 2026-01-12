@@ -115,9 +115,7 @@ export class ModbusManager {
       // Опрашиваем только устройства со статусом connected
       for (const device of connectedDevices) {
         // Используем setTimeout для задержки между запусками опроса устройств
-        setTimeout(() => {
-          this.startDevicePolling(device, client);
-        }, 100 * connectedDevices.indexOf(device)); // Небольшая задержка между устройствами
+        this.startDevicePolling(device, client);
       }
 
       this.connections.set(node.id, connection);
@@ -453,6 +451,12 @@ export class ModbusManager {
     this.sendCurrentState();
   }
 
+  getStatus() {
+    return {
+      isRunning: this.isRunning
+    };
+  }
+
   sendCurrentState(ws = null) {
     const clients = ws ? [ws] : Array.from(this.wss.clients).filter(c => c.readyState === 1);
 
@@ -470,6 +474,7 @@ export class ModbusManager {
       const message = JSON.stringify({
         type: 'state',
         data: {
+          modbusManagerStatus: this.getStatus(),
           nodes: nodes.map(node => ({
             id: node.id,
             name: node.name,
