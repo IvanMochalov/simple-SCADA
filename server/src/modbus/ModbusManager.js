@@ -105,15 +105,15 @@ export class ModbusManager {
         devices: new Map()
       };
 
-      // Запускаем опрос только для устройств со статусом connected
-      const connectedDevices = node.devices.filter(device => device.status === 'connected');
+      // Запускаем опрос только для включенных устройств
+      const enabledDevices = node.devices.filter(device => device.enabled);
 
       for (const device of node.devices) {
         connection.devices.set(device.id, device);
       }
 
-      // Опрашиваем только устройства со статусом connected
-      for (const device of connectedDevices) {
+      // Опрашиваем только включенные устройства
+      for (const device of enabledDevices) {
         // Используем setTimeout для задержки между запусками опроса устройств
         this.startDevicePolling(device, client);
       }
@@ -133,10 +133,7 @@ export class ModbusManager {
         errorMessage = 'Не удалось открыть COM порт. Проверьте, что порт существует и доступен.';
       }
 
-      // Обновляем статус всех устройств этого узла
-      for (const device of node.devices) {
-        await this.updateDeviceStatus(device.id, 'error', errorMessage);
-      }
+      // Уведомляем клиентов об ошибке
       this.broadcastStateUpdate();
     }
   }
@@ -212,10 +209,10 @@ export class ModbusManager {
         return;
       }
 
-      // Проверяем статус устройства - если статус изменился, останавливаем опрос
+      // Проверяем, включено ли устройство - если отключено, останавливаем опрос
       // При переподключении (skipStatusCheck = true) пропускаем эту проверку
       if (!skipStatusCheck) {
-        if (deviceWithTags.status !== 'connected') {
+        if (!deviceWithTags.enabled) {
           this.stopDevicePolling(device.id);
           return;
         }
@@ -304,28 +301,22 @@ export class ModbusManager {
         }
       }
 
-      // Проверяем текущий статус устройства перед обновлением
-      const currentDevice = await this.prisma.device.findUnique({
-        where: {id: device.id},
-        select: {status: true}
-      });
-
-      const oldStatus = currentDevice?.status || 'unknown';
-      let newStatus;
-
-      // Обновляем статус устройства
-      if (allTagsTimeout && !hasSuccessfulReads) {
-        newStatus = 'disconnected';
-        await this.updateDeviceStatus(device.id, newStatus, 'TransactionTimedOutError');
-        // Останавливаем опрос устройства, так как оно отключено
-        this.stopDevicePolling(device.id);
-      } else {
-        newStatus = 'connected';
-        await this.updateDeviceStatus(device.id, newStatus, null);
+      // Обновляем время последнего опроса
+      try {
+        await this.prisma.device.update({
+          where: {id: device.id},
+          data: {
+            lastPollTime: new Date()
+          }
+        });
+      } catch (error) {
+        console.error(`Error updating device lastPollTime ${device.id}:`, error);
       }
 
-      // Уведомляем клиентов об изменении статуса устройства
-      if (oldStatus !== newStatus) {
+      // Если все теги не отвечают, останавливаем опрос устройства
+      if (allTagsTimeout && !hasSuccessfulReads) {
+        // Останавливаем опрос устройства, так как оно не отвечает
+        this.stopDevicePolling(device.id);
         this.broadcastStateUpdate();
       }
 
@@ -343,7 +334,8 @@ export class ModbusManager {
 
     } catch (error) {
       console.error(`Error polling device ${device.name}:`, error);
-      await this.updateDeviceStatus(device.id, 'disconnected', error.message);
+      // Останавливаем опрос при ошибке
+      this.stopDevicePolling(device.id);
       this.broadcastStateUpdate();
     }
   }
@@ -362,19 +354,6 @@ export class ModbusManager {
     return rawValue;
   }
 
-  async updateDeviceStatus(deviceId, status, errorMessage) {
-    try {
-      await this.prisma.device.update({
-        where: {id: deviceId},
-        data: {
-          status,
-          lastPollTime: new Date()
-        }
-      });
-    } catch (error) {
-      console.error(`Error updating device status ${deviceId}:`, error);
-    }
-  }
 
   async collectHistoryData() {
     try {
@@ -382,7 +361,7 @@ export class ModbusManager {
 
       // Получаем все активные устройства с тегами
       const devices = await this.prisma.device.findMany({
-        where: {enabled: true, status: 'connected'},
+        where: {enabled: true},
         include: {
           tags: {
             where: {enabled: true}
@@ -485,7 +464,7 @@ export class ModbusManager {
               id: device.id,
               name: device.name,
               address: device.address,
-              status: device.status,
+              enabled: device.enabled,
               lastPollTime: device.lastPollTime,
               tags: device.tags.map(tag => ({
                 id: tag.id,
@@ -556,11 +535,10 @@ export class ModbusManager {
 
       console.log(`Reconnecting device ${device.name}...`);
 
-      // Выполняем одноразовый опрос устройства с пропуском проверки статуса
-      // Метод pollDevice сам обновит статус на основе результатов опроса
+      // Выполняем одноразовый опрос устройства с пропуском проверки enabled
       await this.pollDevice(device, connection.client, true);
 
-      // Если после опроса устройство стало connected, запускаем постоянный опрос
+      // Если устройство включено, запускаем постоянный опрос
       const updatedDevice = await this.prisma.device.findUnique({
         where: {id: deviceId},
         include: {
@@ -570,7 +548,7 @@ export class ModbusManager {
         }
       });
 
-      if (updatedDevice && updatedDevice.status === 'connected') {
+      if (updatedDevice && updatedDevice.enabled) {
         // Проверяем, не запущен ли уже опрос
         if (!this.pollingIntervals.has(deviceId)) {
           // Обновляем устройство в connection.devices
@@ -579,7 +557,7 @@ export class ModbusManager {
         }
       }
 
-      return {success: true, status: updatedDevice?.status};
+      return {success: true, enabled: updatedDevice?.enabled};
     } catch (error) {
       console.error(`Error reconnecting device ${deviceId}:`, error);
       throw error;

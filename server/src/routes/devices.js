@@ -50,8 +50,7 @@ export default function deviceRoutes(prisma, modbusManager) {
           address,
           responseTimeout: responseTimeout || 1000,
           pollInterval: pollInterval || 1000,
-          enabled: enabled !== undefined ? enabled : true,
-          status: 'unknown'
+          enabled: enabled !== undefined ? enabled : true
         },
         include: {
           connectionNode: true,

@@ -30,30 +30,12 @@ export default function RealTimeView() {
     setExpandedDevices(newExpanded)
   }
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'connected':
-        return '#27ae60'
-      case 'disconnected':
-        return '#e74c3c'
-      case 'error':
-        return '#f39c12'
-      default:
-        return '#95a5a6'
-    }
+  const getEnabledColor = (enabled) => {
+    return enabled ? '#27ae60' : '#95a5a6'
   }
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'connected':
-        return 'Подключено'
-      case 'disconnected':
-        return 'Отключено'
-      case 'error':
-        return 'Ошибка'
-      default:
-        return 'Неизвестно'
-    }
+  const getEnabledText = (enabled) => {
+    return enabled ? 'Включено' : 'Отключено'
   }
 
   const getTagValue = (deviceId, tagId) => {
@@ -171,9 +153,9 @@ export default function RealTimeView() {
                           <span className="device-name">{device.name}</span>
                           <span
                             className="device-status"
-                            style={{color: getStatusColor(device.status)}}
+                            style={{color: getEnabledColor(device.enabled)}}
                           >
-                            {getStatusText(device.status)}
+                            {getEnabledText(device.enabled)}
                           </span>
                         </div>
                         <button

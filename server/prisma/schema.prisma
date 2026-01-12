@@ -34,7 +34,6 @@ model Device {
   responseTimeout Int      @default(1000) // мс
   pollInterval    Int      @default(1000) // мс
   enabled         Boolean  @default(true)
-  status          String   @default("unknown") // "connected", "disconnected", "error", "unknown"
   lastPollTime    DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

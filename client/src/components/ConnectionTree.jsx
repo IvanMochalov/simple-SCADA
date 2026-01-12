@@ -92,19 +92,6 @@ export default function ConnectionTree() {
     }
   }
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'connected':
-        return 'Подключено'
-      case 'disconnected':
-        return 'Отключено'
-      case 'error':
-        return 'Ошибка'
-      default:
-        return 'Неизвестно'
-    }
-  }
-
   return (
     <div className="connection-tree">
       <div className="tree-header">
