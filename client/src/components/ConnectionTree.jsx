@@ -5,9 +5,13 @@ import DeviceForm from './DeviceForm'
 import TagForm from './TagForm'
 import './ConnectionTree.css'
 import {api} from "../services/api.js";
-import {toast} from "react-toastify"
+import {Button} from 'antd';
+import {AppstoreAddOutlined} from '@ant-design/icons';
+import {useNotification} from "../context/NotificationContext.jsx";
+
 
 export default function ConnectionTree() {
+  const notification = useNotification();
   const {state, refreshState} = useWebSocket()
   const [nodes, setNodes] = useState([])
   const [expandedNodes, setExpandedNodes] = useState(new Set())
@@ -65,7 +69,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting node:', error)
-      toast.error("Ошибка при удалении узла")
+      notification.error('Ошибка при удалении узла', error.message || "")
     }
   }
 
@@ -77,7 +81,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting device:', error)
-      toast.error("Ошибка при удалении устройства")
+      notification.error('Ошибка при удалении устройства', error.message || "")
     }
   }
 
@@ -89,7 +93,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting tag:', error)
-      toast.error("Ошибка при удалении тега")
+      notification.error('Ошибка при удалении тега', error.message || "")
     }
   }
 
@@ -97,15 +101,16 @@ export default function ConnectionTree() {
     <div className="connection-tree">
       <div className="tree-header">
         <h2>Конфигурация узлов связи</h2>
-        <button
-          className="btn btn-primary"
+        <Button
+          type="primary"
           onClick={() => {
             setSelectedNodeId(null)
             setShowNodeForm(true)
           }}
+          icon={<AppstoreAddOutlined/>}
         >
-          + Добавить узел связи
-        </button>
+          Добавить узел связи
+        </Button>
       </div>
 
       <div className="tree-container">

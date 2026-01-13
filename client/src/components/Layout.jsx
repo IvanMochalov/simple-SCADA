@@ -1,11 +1,11 @@
 import React from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useWebSocket } from '../context/WebSocketContext'
+import {Link, Outlet, useLocation} from 'react-router-dom'
+import {useWebSocket} from '../context/WebSocketContext'
 import './Layout.css'
 
-export default function Layout({ children }) {
+export default function Layout() {
   const location = useLocation()
-  const { isConnected } = useWebSocket()
+  const {isConnected} = useWebSocket()
 
   return (
     <div className="layout">
@@ -18,22 +18,22 @@ export default function Layout({ children }) {
           </div>
         </div>
       </header>
-      
+
       <nav className="nav">
-        <Link 
-          to="/" 
+        <Link
+          to="/"
           className={location.pathname === '/' ? 'active' : ''}
         >
           Конфигурация
         </Link>
-        <Link 
-          to="/realtime" 
+        <Link
+          to="/realtime"
           className={location.pathname === '/realtime' ? 'active' : ''}
         >
           Реальное время
         </Link>
-        <Link 
-          to="/history" 
+        <Link
+          to="/history"
           className={location.pathname === '/history' ? 'active' : ''}
         >
           История
@@ -41,7 +41,7 @@ export default function Layout({ children }) {
       </nav>
 
       <main className="main-content">
-        {children}
+        <Outlet/>
       </main>
     </div>
   )

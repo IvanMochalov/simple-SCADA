@@ -2,9 +2,10 @@ import React, {useState} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './RealTimeView.css'
 import {api} from "../services/api.js";
-import {toast} from "react-toastify"
+import {useNotification} from "../context/NotificationContext";
 
 export default function RealTimeView() {
+  const notification = useNotification();
   const {state, tagValues, isConnected} = useWebSocket()
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const [expandedDevices, setExpandedDevices] = useState(new Set())
@@ -60,15 +61,15 @@ export default function RealTimeView() {
     try {
       if (isModbusRunning) {
         await api.stopModbus()
-        toast.warning("Modbus Manager остановлен")
+        notification.warning('Modbus Manager остановлен');
       } else {
         await api.startModbus()
-        toast.success("Modbus Manager запущен")
+        notification.success('Modbus Manager запущен');
       }
       // Состояние обновится автоматически через WebSocket
     } catch (error) {
       console.error('Error toggling Modbus Manager:', error)
-      toast.error(error.response?.data?.error || 'Ошибка при управлении Modbus Manager')
+      notification.error('Ошибка при управлении Modbus Manager', error.response?.data?.error || "")
     } finally {
       setIsToggling(false)
     }
@@ -77,10 +78,10 @@ export default function RealTimeView() {
   const handleReconnectDevice = async (deviceId) => {
     try {
       await api.reconnectDeviceById(deviceId)
-      // Состояние обновится автоматически через WebSocket
+      notification.success('Устройство переподключено');
     } catch (error) {
       console.error('Error reconnecting device:', error)
-      toast.error(`Ошибка при переподключении устройства: ${error.response?.data?.error}` || 'Ошибка при переподключении устройства')
+      notification.error('Ошибка при переподключении устройства', error.response?.data?.error || "")
     }
   }
 

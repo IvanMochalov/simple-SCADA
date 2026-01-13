@@ -1,9 +1,10 @@
 import React, {useState, useEffect} from 'react'
 import './Form.css'
 import {api} from "../services/api.js";
-import {toast} from "react-toastify"
+import {useNotification} from "../context/NotificationContext.jsx";
 
 export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
+  const notification = useNotification();
   const [nodes, setNodes] = useState([])
   const [formData, setFormData] = useState({
     connectionNodeId: nodeId || '',
@@ -31,7 +32,7 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       }
     } catch (error) {
       console.error('Error loading nodes:', error)
-      toast.error("Ошибка загрузки узлов")
+      notification.error('Ошибка загрузки узлов', error.message || "")
     }
   }
 
@@ -41,7 +42,7 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading device:', error)
-      toast.error("Ошибка загрузки устройства")
+      notification.error('Ошибка загрузки устройства', error.message || "")
     }
   }
 

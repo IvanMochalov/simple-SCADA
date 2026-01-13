@@ -11,50 +11,50 @@ datasource db {
 }
 
 model ConnectionNode {
-  id          String   @id @default(uuid())
-  name        String
-  type        String   // "COM_RTU_MASTER"
-  comPort     String   // "COM3"
-  baudRate    Int      @default(9600)
-  dataBits    Int      @default(8)
-  stopBits    Int      @default(1)
-  parity      String   @default("none")
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  devices     Device[]
+  id        String   @id @default(uuid())
+  name      String
+  type      String // "COM" | "TCP_IP"
+  comPort   String // "COM3"
+  baudRate  Int      @default(9600)
+  dataBits  Int      @default(8)
+  stopBits  Int      @default(1)
+  parity    String   @default("none")
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  devices   Device[]
 }
 
 model Device {
-  id              String   @id @default(uuid())
+  id               String         @id @default(uuid())
   connectionNodeId String
-  connectionNode  ConnectionNode @relation(fields: [connectionNodeId], references: [id], onDelete: Cascade)
-  name            String
-  address         Int      // Modbus address (17 = 0x11)
-  responseTimeout Int      @default(1000) // мс
-  pollInterval    Int      @default(1000) // мс
-  enabled         Boolean  @default(true)
-  lastPollTime    DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  tags            Tag[]
-  historyData     HistoryData[]
+  connectionNode   ConnectionNode @relation(fields: [connectionNodeId], references: [id], onDelete: Cascade)
+  name             String
+  address          Int // Modbus address (17 = 0x11)
+  responseTimeout  Int            @default(1000) // мс
+  pollInterval     Int            @default(1000) // мс
+  enabled          Boolean        @default(true)
+  lastPollTime     DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tags             Tag[]
+  historyData      HistoryData[]
 }
 
 model Tag {
-  id          String   @id @default(uuid())
-  deviceId    String
-  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  name        String
-  address     Int      // Modbus register address (1 = 0x0001)
-  registerType String  // "HOLDING_REGISTER", "INPUT_REGISTER", "COIL", "DISCRETE_INPUT"
+  id             String        @id @default(uuid())
+  deviceId       String
+  device         Device        @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  name           String
+  address        Int // Modbus register address (1 = 0x0001)
+  registerType   String // "HOLDING_REGISTER", "INPUT_REGISTER", "COIL", "DISCRETE_INPUT"
   deviceDataType String // "int16", "int32", "float", etc.
   serverDataType String // "int32", "float", etc.
-  accessType  String   // "ReadOnly", "ReadWrite"
-  enabled     Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  historyData HistoryData[]
+  accessType     String // "ReadOnly", "ReadWrite"
+  enabled        Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  historyData    HistoryData[]
 }
 
 model HistoryData {
@@ -63,9 +63,9 @@ model HistoryData {
   device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
   tagId     String
   tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  value     String   // храним как строку для гибкости
+  value     String // храним как строку для гибкости
   timestamp DateTime @default(now())
-  
+
   @@index([deviceId, tagId, timestamp])
   @@index([timestamp])
 }

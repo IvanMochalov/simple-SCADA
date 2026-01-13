@@ -14,11 +14,11 @@ export default function connectionRoutes(prisma, modbusManager) {
             }
           }
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: {createdAt: 'desc'}
       });
       res.json(nodes);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -26,7 +26,7 @@ export default function connectionRoutes(prisma, modbusManager) {
   router.get('/:id', async (req, res) => {
     try {
       const node = await prisma.connectionNode.findUnique({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         include: {
           devices: {
             include: {
@@ -36,23 +36,23 @@ export default function connectionRoutes(prisma, modbusManager) {
         }
       });
       if (!node) {
-        return res.status(404).json({ error: 'Connection node not found' });
+        return res.status(404).json({error: 'Connection node not found'});
       }
       res.json(node);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
   // Создать узел связи
   router.post('/', async (req, res) => {
     try {
-      const { name, type, comPort, baudRate, dataBits, stopBits, parity, enabled } = req.body;
-      
+      const {name, type, comPort, baudRate, dataBits, stopBits, parity, enabled} = req.body;
+
       const node = await prisma.connectionNode.create({
         data: {
           name,
-          type: type || 'COM_RTU_MASTER',
+          type: type || 'COM',
           comPort,
           baudRate: baudRate || 9600,
           dataBits: dataBits || 8,
@@ -69,17 +69,17 @@ export default function connectionRoutes(prisma, modbusManager) {
 
       res.json(node);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
   // Обновить узел связи
   router.put('/:id', async (req, res) => {
     try {
-      const { name, type, comPort, baudRate, dataBits, stopBits, parity, enabled } = req.body;
-      
+      const {name, type, comPort, baudRate, dataBits, stopBits, parity, enabled} = req.body;
+
       const node = await prisma.connectionNode.update({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         data: {
           name,
           type,
@@ -97,7 +97,7 @@ export default function connectionRoutes(prisma, modbusManager) {
 
       res.json(node);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -108,12 +108,12 @@ export default function connectionRoutes(prisma, modbusManager) {
       await modbusManager.stopConnection(req.params.id);
 
       await prisma.connectionNode.delete({
-        where: { id: req.params.id }
+        where: {id: req.params.id}
       });
 
-      res.json({ success: true });
+      res.json({success: true});
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 

@@ -1,9 +1,11 @@
 import React, {useState, useEffect} from 'react'
 import './Form.css'
 import {api} from "../services/api.js";
-import {toast} from "react-toastify"
+import {useNotification} from "../context/NotificationContext.jsx";
 
 export default function TagForm({deviceId, onClose, onSave}) {
+  const notification = useNotification();
+
   const [formData, setFormData] = useState({
     deviceId: deviceId || '',
     name: '',
@@ -35,7 +37,7 @@ export default function TagForm({deviceId, onClose, onSave}) {
       onSave()
     } catch (error) {
       console.error('Error saving tag:', error)
-      toast.error('Ошибка при сохранении тега')
+      notification.error('Ошибка при сохранении тега', error.message || "")
     } finally {
       setLoading(false)
     }

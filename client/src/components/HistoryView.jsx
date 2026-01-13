@@ -2,11 +2,12 @@ import React, {useState, useEffect} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './HistoryView.css'
 import {api} from "../services/api.js";
-import {toast} from "react-toastify";
 import {Button, Select, DatePicker, TimePicker, Space, Table} from 'antd';
 import dayjs from 'dayjs';
+import {useNotification} from "../context/NotificationContext.jsx";
 
 export default function HistoryView() {
+  const notification = useNotification();
   const {state} = useWebSocket()
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [selectedTag, setSelectedTag] = useState(null)
@@ -40,11 +41,11 @@ export default function HistoryView() {
           limit: 10000
         }
       })
-      toast.info('История загружена')
+      notification.success('История загружена')
       setHistory(response.data.reverse()) // Показываем от старых к новым
     } catch (error) {
       console.error('Error loading history:', error)
-      toast.error('Ошибка при загрузке истории')
+      notification.error('Ошибка загрузки истории', error.message || "")
     } finally {
       setLoading(false)
     }

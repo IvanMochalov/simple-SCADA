@@ -1,18 +1,25 @@
 import React, {useState, useEffect} from 'react'
+import {Modal, Form, Input, Select, Switch, Alert} from 'antd'
 import './Form.css'
-import {toast} from "react-toastify"
 import {api} from "../services/api.js";
+import {useNotification} from "../context/NotificationContext.jsx";
+
+const initialNodeFormData = {
+  name: '',
+  type: 'COM',
+  comPort: 'COM3',
+  baudRate: 9600,
+  dataBits: 8,
+  stopBits: 1,
+  parity: 'none',
+  enabled: true
+}
 
 export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
+  const notification = useNotification();
+  const [form] = Form.useForm()
   const [formData, setFormData] = useState({
-    name: '',
-    type: 'COM_RTU_MASTER',
-    comPort: 'COM3',
-    baudRate: 9600,
-    dataBits: 8,
-    stopBits: 1,
-    parity: 'none',
-    enabled: true
+    ...initialNodeFormData
   })
   const [loading, setLoading] = useState(false)
 
@@ -22,133 +29,161 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
     }
   }, [nodeId])
 
+  useEffect(() => {
+    form.setFieldsValue(formData)
+  }, [formData, form])
+
   const loadNode = async () => {
     try {
       const response = await api.getNodeById(nodeId)
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading node:', error)
-      toast.error('Ошибка при загрузке узла')
+      notification.error('Ошибка загрузки узла', error.message || "")
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
+  const handleSubmit = async () => {
+
+    const requestFormData = {
+      ...formData,
+    }
 
     try {
       if (nodeId) {
-        await api.updateNodeById(nodeId, formData)
+        await api.updateNodeById(nodeId, requestFormData)
       } else {
-        await api.createNode(formData)
+        await api.createNode(requestFormData)
       }
       onSave()
     } catch (error) {
       console.error('Error saving node:', error)
-      toast.error('Ошибка при сохранении узла')
+      notification.error('Ошибка при сохранении узла', error.message || "")
     } finally {
       setLoading(false)
     }
   }
 
+  const handleFormChange = (changedValues, allValues) => {
+    setFormData(prev => ({
+      ...prev,
+      ...changedValues
+    }))
+  }
+
+  const isEnabledTypeCOM = formData.type === 'COM';
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{nodeId ? 'Редактировать узел связи' : 'Создать узел связи'}</h3>
-          <button className="btn-close" onClick={onClose}>×</button>
-        </div>
+    <Modal
+      title={nodeId ? 'Редактировать узел связи' : 'Создать узел связи'}
+      open={true}
+      onCancel={onClose}
+      onOk={handleSubmit}
+      confirmLoading={loading}
+      cancelText={"Отмена"}
+      okText={"Сохранить"}
+      okButtonProps={{
+        disabled: !isEnabledTypeCOM
+      }}
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={handleFormChange}
+        onFinish={handleSubmit}
+        initialValues={formData}
+        disabled={loading}
+      >
+        <Form.Item
+          label="Название"
+          name="name"
+          rules={[{required: true, message: 'Введите название'}]}
+        >
+          <Input/>
+        </Form.Item>
 
-        <form onSubmit={handleSubmit} className="form">
-          <div className="form-group">
-            <label>Название</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              required
-            />
-          </div>
+        <Form.Item
+          label="Тип узла"
+          name="type"
+          rules={[{required: true, message: 'Выберите тип узла'}]}
+        >
+          <Select>
+            <Select.Option value={"COM"}>COM порт</Select.Option>
+            <Select.Option value={"TCP_IP"}>TCP/IP</Select.Option>
+          </Select>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>COM порт</label>
-            <input
-              type="text"
-              value={formData.comPort}
-              onChange={(e) => setFormData({...formData, comPort: e.target.value})}
-              required
-            />
-          </div>
+        <Form.Item
+          label="Включен в работу"
+          name="enabled"
+          valuePropName="checked"
+        >
+          <Switch checkedChildren="on" unCheckedChildren="off"/>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>Скорость (бод)</label>
-            <select
-              value={formData.baudRate}
-              onChange={(e) => setFormData({...formData, baudRate: parseInt(e.target.value)})}
+        {!isEnabledTypeCOM && (
+          <Alert title="Поддержка TCP/IP в разработке" type="warning"/>
+        )}
+
+        {isEnabledTypeCOM && (
+          <React.Fragment>
+            <Form.Item
+              label="Порт"
+              name="comPort"
+              rules={[{required: true, message: 'Введите COM порт'}]}
             >
-              <option value={9600}>9600</option>
-              <option value={19200}>19200</option>
-              <option value={38400}>38400</option>
-              <option value={57600}>57600</option>
-              <option value={115200}>115200</option>
-            </select>
-          </div>
+              <Input/>
+            </Form.Item>
 
-          <div className="form-group">
-            <label>Биты данных</label>
-            <select
-              value={formData.dataBits}
-              onChange={(e) => setFormData({...formData, dataBits: parseInt(e.target.value)})}
+            <Form.Item
+              label="Скорость (бод)"
+              name="baudRate"
             >
-              <option value={7}>7</option>
-              <option value={8}>8</option>
-            </select>
-          </div>
+              <Select>
+                <Select.Option value={9600}>9600</Select.Option>
+                <Select.Option value={19200}>19200</Select.Option>
+                <Select.Option value={38400}>38400</Select.Option>
+                <Select.Option value={57600}>57600</Select.Option>
+                <Select.Option value={115200}>115200</Select.Option>
+              </Select>
+            </Form.Item>
 
-          <div className="form-group">
-            <label>Стоп-биты</label>
-            <select
-              value={formData.stopBits}
-              onChange={(e) => setFormData({...formData, stopBits: parseInt(e.target.value)})}
+            <Form.Item
+              label="Биты данных"
+              name="dataBits"
             >
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-            </select>
-          </div>
+              <Select>
+                <Select.Option value={5}>5</Select.Option>
+                <Select.Option value={6}>6</Select.Option>
+                <Select.Option value={7}>7</Select.Option>
+                <Select.Option value={8}>8</Select.Option>
+              </Select>
+            </Form.Item>
 
-          <div className="form-group">
-            <label>Четность</label>
-            <select
-              value={formData.parity}
-              onChange={(e) => setFormData({...formData, parity: e.target.value})}
+            <Form.Item
+              label="Стоп-биты"
+              name="stopBits"
             >
-              <option value="none">Нет</option>
-              <option value="even">Четная</option>
-              <option value="odd">Нечетная</option>
-            </select>
-          </div>
+              <Select>
+                <Select.Option value={1}>1</Select.Option>
+                <Select.Option value={2}>2</Select.Option>
+              </Select>
+            </Form.Item>
 
-          <div className="form-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={formData.enabled}
-                onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
-              />
-              Включено
-            </label>
-          </div>
+            <Form.Item
+              label="Четность"
+              name="parity"
+            >
+              <Select>
+                <Select.Option value="none">Не используется</Select.Option>
+                <Select.Option value="even">Четная</Select.Option>
+                <Select.Option value="odd">Нечетная</Select.Option>
+              </Select>
+            </Form.Item>
+          </React.Fragment>
+        )}
 
-          <div className="form-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Отмена
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Сохранение...' : 'Сохранить'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </Form>
+    </Modal>
   )
 }
