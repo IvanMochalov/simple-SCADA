@@ -13,7 +13,6 @@ import {
   Row,
   Col,
   Typography,
-  Divider,
   Empty,
 } from 'antd';
 import dayjs from 'dayjs';
@@ -26,15 +25,55 @@ export default function HistoryView() {
   const {state} = useWebSocket()
 
   const [selectedDevice, setSelectedDevice] = useState("")
-  const [selectedTag, setSelectedTag] = useState("")
   const [history, setHistory] = useState([])
-  const [deviceHistory, setDeviceHistory] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // Получаем все устройства и теги для выбора с помощью useMemo
-  const {allDevices, allTags} = useMemo(() => {
+  // Преобразуем историю в табличный формат
+  const transformedData = useMemo(() => {
+    if (!history || history.length === 0) return {data: []};
+
+    // Собираем уникальные временные метки
+    const timestamps = [...new Set(history.map(item => item.timestamp))].sort();
+
+    // Собираем уникальные теги
+    const uniqueTags = {};
+    history.forEach(item => {
+      if (item.tag && item.tag.id) {
+        uniqueTags[item.tag.id] = {
+          id: item.tag.id,
+          name: item.tag.name,
+          deviceName: item.device?.name || 'Неизвестно'
+        };
+      }
+    });
+
+    const tags = Object.values(uniqueTags);
+
+    // Создаем строки для таблицы
+    const tableData = timestamps.map(timestamp => {
+      const row = {id: timestamp, timestamp};
+
+      // Находим все записи для этого времени
+      const recordsAtTime = history.filter(item => item.timestamp === timestamp);
+
+      // Заполняем значения тегов
+      tags.forEach(tag => {
+        const record = recordsAtTime.find(item => item.tag.id === tag.id);
+        row[`tag_${tag.id}`] = record ? record.value : null;
+        row[`tag_${tag.id}_name`] = tag.name; // Для удобства
+      });
+
+      return row;
+    });
+
+    return {
+      data: tableData,
+      tags: tags
+    };
+  }, [history]);
+  
+  const allDevices = useMemo(() => {
     const devices = [];
-    const tags = [];
 
     if (state?.nodes) {
       state.nodes.forEach(node => {
@@ -45,23 +84,12 @@ export default function HistoryView() {
               nodeName: node.name,
               nodeId: node.id
             });
-
-            if (device.tags && device.tags.length > 0) {
-              device.tags.forEach(tag => {
-                tags.push({
-                  ...tag,
-                  deviceName: device.name,
-                  deviceId: device.id,
-                  nodeName: node.name
-                });
-              });
-            }
           });
         }
       });
     }
 
-    return {allDevices: devices, allTags: tags};
+    return devices;
   }, [state]);
 
   const selectDeviceOptions = [
@@ -75,19 +103,6 @@ export default function HistoryView() {
     }))
   ];
 
-  const selectTagOptions = [
-    {
-      value: "",
-      label: "Выберите тег"
-    },
-    ...allTags
-      .filter(tag => tag.deviceId === selectedDevice)
-      .map(tag => ({
-        value: tag.id,
-        label: `${tag.name} (Адрес: ${tag.address})`
-      }))
-  ];
-
   // Состояния для DatePicker и TimePicker
   const [startDate, setStartDate] = useState(() => {
     return dayjs().subtract(1, 'hour');
@@ -96,36 +111,6 @@ export default function HistoryView() {
   const [endDate, setEndDate] = useState(() => {
     return dayjs();
   });
-
-  useEffect(() => {
-    if (selectedTag) {
-      loadTagHistory()
-    }
-  }, [selectedTag, startDate, endDate])
-
-  const loadTagHistory = async () => {
-    if (!selectedTag) return
-    const currentTag = allTags.find(tag => tag.id === selectedTag)
-    const currentTagName = `${currentTag.name} (Адрес: ${currentTag.address})`
-
-    setLoading(true)
-    try {
-      const response = await api.getHistoryTagById(selectedTag, {
-        params: {
-          startTime: startDate.toISOString(),
-          endTime: endDate.toISOString(),
-          limit: 10000
-        }
-      })
-      notification.success(`История тега '${currentTagName}' успешно загружена`)
-      setHistory(response.data.reverse()) // Показываем от старых к новым
-    } catch (error) {
-      console.error('Error loading history:', error)
-      notification.error('Ошибка загрузки истории тега', error.message || "")
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const loadDeviceHistory = async () => {
     if (!selectedDevice) return
@@ -143,7 +128,7 @@ export default function HistoryView() {
         }
       })
       notification.success(`История устройства ${currentDeviceName} успешно загружена`)
-      setDeviceHistory(response.data.reverse()) // Показываем от старых к новым
+      setHistory(response.data.reverse()) // Показываем от старых к новым
     } catch (error) {
       console.error('Error loading history:', error)
       notification.error('Ошибка загрузки истории устройства', error.message || "")
@@ -158,29 +143,50 @@ export default function HistoryView() {
     }
   }, [selectedDevice, startDate, endDate])
 
-  // Колонки для таблицы Ant Design
-  const columns = [
-    {
-      title: 'Время',
-      dataIndex: 'timestamp',
-      key: 'timestamp',
-      render: (timestamp) => {
-        const date = new Date(timestamp);
-        return date.toLocaleString('ru-RU');
+  const columns = useMemo(() => {
+    const baseColumns = [
+      {
+        title: 'Время',
+        dataIndex: 'timestamp',
+        key: 'timestamp',
+        fixed: 'left',
+        width: 150,
+        render: (timestamp) => {
+          const date = new Date(timestamp);
+          return date.toLocaleString('ru-RU');
+        },
+        sorter: (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
+        defaultSortOrder: 'ascend',
       },
-      width: 150,
-      sorter: (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
-      defaultSortOrder: 'ascend',
-    },
-    {
-      title: 'Значение',
-      width: 150,
-      dataIndex: 'value',
-      key: 'value',
-      render: (value) => <span className="value-cell">{value}</span>,
-      sorter: (a, b) => a.value - b.value,
-    },
-  ];
+    ];
+
+    // Добавляем колонки для каждого тега
+    if (transformedData.tags && transformedData.tags.length > 0) {
+      transformedData.tags.forEach(tag => {
+        baseColumns.push({
+          title: `Значение ${tag.name}`,
+          dataIndex: `tag_${tag.id}`,
+          key: `tag_${tag.id}`,
+          width: 120,
+          render: (value) => (
+            <span className="value-cell" style={{
+              color: value !== null && value !== undefined ? '#1890ff' : '#999',
+              fontWeight: value !== null && value !== undefined ? '600' : 'normal'
+            }}>
+              {value !== null && value !== undefined ? value : '-'}
+            </span>
+          ),
+          sorter: (a, b) => {
+            const valA = a[`tag_${tag.id}`] || 0;
+            const valB = b[`tag_${tag.id}`] || 0;
+            return valA - valB;
+          },
+        });
+      });
+    }
+
+    return baseColumns;
+  }, [transformedData.tags]);
 
   // Обработчик изменения начальной даты
   const handleStartDateTimeChange = (date, dateString) => {
@@ -212,8 +218,6 @@ export default function HistoryView() {
     }
   }
 
-  const selectedTagInfo = allTags.find(t => t.id === selectedTag)
-
   if (!state || !state?.nodes || state?.nodes?.length === 0) {
     return (
       <Card className="history-view">
@@ -242,7 +246,7 @@ export default function HistoryView() {
         }}
       >
         <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} lg={8}>
             <div className="filter-group">
               <Text strong style={{display: 'block', marginBottom: 8}}>
                 Устройство
@@ -251,30 +255,16 @@ export default function HistoryView() {
                 value={selectedDevice}
                 onChange={(value) => {
                   setSelectedDevice(value)
-                  setSelectedTag("")
+                  setHistory([])
                 }}
                 options={selectDeviceOptions}
                 placeholder="Выберите устройство"
+                style={{width: '100%'}}
               />
             </div>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
-            <div className="filter-group">
-              <Text strong style={{display: 'block', marginBottom: 8}}>
-                Тег
-              </Text>
-              <Select
-                value={selectedTag}
-                onChange={(value) => setSelectedTag(value)}
-                disabled={!selectedDevice}
-                options={selectTagOptions}
-                placeholder="Выберите тег"
-              />
-            </div>
-          </Col>
-
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} lg={8}>
             <div className="filter-group">
               <Text strong style={{display: 'block', marginBottom: 8}}>
                 Начало
@@ -296,7 +286,7 @@ export default function HistoryView() {
             </div>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} lg={8}>
             <div className="filter-group">
               <Text strong style={{display: 'block', marginBottom: 8}}>
                 Конец
@@ -321,8 +311,8 @@ export default function HistoryView() {
           <Col xs={24}>
             <Button
               type="primary"
-              onClick={loadTagHistory}
-              disabled={!selectedTag || loading}
+              onClick={loadDeviceHistory}
+              disabled={!selectedDevice || loading}
               loading={loading}
             >
               Загрузить историю
@@ -331,49 +321,30 @@ export default function HistoryView() {
         </Row>
       </Card>
 
-      {selectedTagInfo && (
-        <Card
-          title="Информация о теге"
-          styles={{root: {marginBottom: 24}}}
-        >
-          <Row gutter={[16, 8]}>
-            <Col span={24}>
-              <Title level={4} style={{margin: 0}}>
-                {selectedTagInfo.deviceName} → {selectedTagInfo.name}
-              </Title>
-            </Col>
-            <Col span={24}>
-              <Space separator={<Divider orientation="vertical"/>}>
-                <Text>Адрес: {selectedTagInfo.address}</Text>
-                <Text>Тип: {selectedTagInfo.registerType}</Text>
-              </Space>
-            </Col>
-          </Row>
-        </Card>
-      )}
-
-      {selectedTag && (
+      {selectedDevice && (
         <Card title="Исторические данные">
-          {history.length === 0 ? (
+          {transformedData?.data?.length === 0 ? (
             <Empty
-              description="Нет данных за выбранный период"
+              description={loading ? "Загрузка данных..." : "Нет данных за выбранный период"}
               image={Empty.PRESENTED_IMAGE_SIMPLE}
             />
           ) : (
-            <Table
-              loading={loading}
-              dataSource={history}
-              columns={columns}
-              rowKey="id"
-              size="small"
-              pagination={{
-                defaultPageSize: 10,
-                showSizeChanger: true,
-                pageSizeOptions: ['10', '20', '50', '100'],
-                showTotal: (total, range) =>
-                  `${range[0]}-${range[1]} из ${total} записей`,
-              }}
-            />
+            <div style={{overflowX: 'auto'}}>
+              <Table
+                loading={loading}
+                dataSource={transformedData.data}
+                columns={columns}
+                rowKey="id"
+                size="small"
+                pagination={{
+                  defaultPageSize: 10,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['10', '20', '50', '100'],
+                  showTotal: (total, range) =>
+                    `${range[0]}-${range[1]} из ${total} записей`,
+                }}
+              />
+            </div>
           )}
         </Card>
       )}
