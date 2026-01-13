@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react'
-import axios from 'axios'
 import './Form.css'
 import {api} from "../services/api.js";
+import {toast} from "react-toastify"
 
 export default function TagForm({deviceId, onClose, onSave}) {
   const [formData, setFormData] = useState({
@@ -35,7 +35,7 @@ export default function TagForm({deviceId, onClose, onSave}) {
       onSave()
     } catch (error) {
       console.error('Error saving tag:', error)
-      alert('Ошибка при сохранении тега')
+      toast.error('Ошибка при сохранении тега')
     } finally {
       setLoading(false)
     }

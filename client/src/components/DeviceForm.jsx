@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react'
-import axios from 'axios'
 import './Form.css'
 import {api} from "../services/api.js";
+import {toast} from "react-toastify"
 
 export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   const [nodes, setNodes] = useState([])
@@ -31,6 +31,7 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       }
     } catch (error) {
       console.error('Error loading nodes:', error)
+      toast.error("Ошибка загрузки узлов")
     }
   }
 
@@ -40,7 +41,7 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading device:', error)
-      alert('Ошибка при загрузке устройства')
+      toast.error("Ошибка загрузки устройства")
     }
   }
 

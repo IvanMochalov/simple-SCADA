@@ -524,13 +524,13 @@ export class ModbusManager {
       });
 
       if (!device) {
-        throw new Error('Device not found');
+        throw new Error('Устройство не найдено');
       }
 
       // Находим соединение узла связи
       const connection = this.connections.get(device.connectionNodeId);
       if (!connection || !connection.client) {
-        throw new Error('Connection node is not active');
+        throw new Error('Устройство выключено');
       }
 
       console.log(`Reconnecting device ${device.name}...`);

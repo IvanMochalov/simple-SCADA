@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react'
 import './Form.css'
+import {toast} from "react-toastify"
 import {api} from "../services/api.js";
 
 export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
@@ -27,7 +28,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
       setFormData(response.data)
     } catch (error) {
       console.error('Error loading node:', error)
-      alert('Ошибка при загрузке узла')
+      toast.error('Ошибка при загрузке узла')
     }
   }
 
@@ -44,7 +45,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
       onSave()
     } catch (error) {
       console.error('Error saving node:', error)
-      alert('Ошибка при сохранении узла')
+      toast.error('Ошибка при сохранении узла')
     } finally {
       setLoading(false)
     }

@@ -2,6 +2,7 @@ import React, {useState} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './RealTimeView.css'
 import {api} from "../services/api.js";
+import {toast} from "react-toastify"
 
 export default function RealTimeView() {
   const {state, tagValues, isConnected} = useWebSocket()
@@ -54,18 +55,20 @@ export default function RealTimeView() {
 
   const handleToggleModbus = async () => {
     if (isToggling) return
-    
+
     setIsToggling(true)
     try {
       if (isModbusRunning) {
         await api.stopModbus()
+        toast.warning("Modbus Manager остановлен")
       } else {
         await api.startModbus()
+        toast.success("Modbus Manager запущен")
       }
       // Состояние обновится автоматически через WebSocket
     } catch (error) {
       console.error('Error toggling Modbus Manager:', error)
-      alert(error.response?.data?.error || 'Ошибка при управлении Modbus Manager')
+      toast.error(error.response?.data?.error || 'Ошибка при управлении Modbus Manager')
     } finally {
       setIsToggling(false)
     }
@@ -77,7 +80,7 @@ export default function RealTimeView() {
       // Состояние обновится автоматически через WebSocket
     } catch (error) {
       console.error('Error reconnecting device:', error)
-      alert(error.response?.data?.error || 'Ошибка при переподключении устройства')
+      toast.error(`Ошибка при переподключении устройства: ${error.response?.data?.error}` || 'Ошибка при переподключении устройства')
     }
   }
 

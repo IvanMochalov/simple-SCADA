@@ -5,6 +5,7 @@ import DeviceForm from './DeviceForm'
 import TagForm from './TagForm'
 import './ConnectionTree.css'
 import {api} from "../services/api.js";
+import {toast} from "react-toastify"
 
 export default function ConnectionTree() {
   const {state, refreshState} = useWebSocket()
@@ -64,7 +65,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting node:', error)
-      alert('Ошибка при удалении узла')
+      toast.error("Ошибка при удалении узла")
     }
   }
 
@@ -76,7 +77,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting device:', error)
-      alert('Ошибка при удалении устройства')
+      toast.error("Ошибка при удалении устройства")
     }
   }
 
@@ -88,7 +89,7 @@ export default function ConnectionTree() {
       refreshState()
     } catch (error) {
       console.error('Error deleting tag:', error)
-      alert('Ошибка при удалении тега')
+      toast.error("Ошибка при удалении тега")
     }
   }
 
