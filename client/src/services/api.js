@@ -39,6 +39,8 @@ export const api = {
   // POST /api/devices/:id/reconnect - Переподключить устройство
   reconnectDeviceById: async (id) => await axios.post(`${API_BASE}/devices/${id}/reconnect`),
 
+  // GET /api/history/device/:deviceId - Получить историю для устройства
+  getHistoryDeviceById: async (id, requestData) => await axios.get(`${API_BASE}/history/device/${id}`, requestData),
 
   // API TAGS - Теги
   // DELETE /api/tags/:id - Удалить тег

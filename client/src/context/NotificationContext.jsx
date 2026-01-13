@@ -45,31 +45,31 @@ export const NotificationProvider = ({children}) => {
   const [api, contextHolder] = notification.useNotification();
 
   const methods = {
-    success: (message, description = '') => {
+    success: (title, description = '') => {
       api.success({
         ...sharedProps,
-        message,
+        title,
         description,
       });
     },
-    error: (message, description = '') => {
+    error: (title, description = '') => {
       api.error({
         ...sharedProps,
-        message,
+        title,
         description,
       });
     },
-    info: (message, description = '') => {
+    info: (title, description = '') => {
       api.info({
         ...sharedProps,
-        message,
+        title,
         description,
       });
     },
-    warning: (message, description = '') => {
+    warning: (title, description = '') => {
       api.warning({
         ...sharedProps,
-        message,
+        title,
         description,
       });
     },

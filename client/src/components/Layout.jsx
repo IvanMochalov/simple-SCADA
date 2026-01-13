@@ -5,7 +5,8 @@ import './Layout.css'
 
 export default function Layout() {
   const location = useLocation()
-  const {isConnected} = useWebSocket()
+  const {isConnected, state} = useWebSocket()
+  console.log("state: -->", state);
 
   return (
     <div className="layout">
