@@ -43,6 +43,9 @@ export const api = {
   getHistoryDeviceById: async (id, requestData) => await axios.get(`${API_BASE}/history/device/${id}`, requestData),
 
   // API TAGS - Теги
+  // GET /api/tags/:id - Получить тег по ID
+  getTagById: async (id) => await axios.get(`${API_BASE}/tags/${id}`),
+
   // DELETE /api/tags/:id - Удалить тег
   removeTagById: async (id) => await axios.delete(`${API_BASE}/tags/${id}`),
 

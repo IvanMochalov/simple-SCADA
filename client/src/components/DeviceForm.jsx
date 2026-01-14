@@ -1,10 +1,11 @@
 import React, {useState, useEffect} from 'react'
-import './Form.css'
+import {Modal, Form, Input, Select, InputNumber, Switch} from 'antd'
 import {api} from "../services/api.js";
 import {useNotification} from "../context/NotificationContext.jsx";
 
 export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   const notification = useNotification();
+  const [form] = Form.useForm()
   const [nodes, setNodes] = useState([])
   const [formData, setFormData] = useState({
     connectionNodeId: nodeId || '',
@@ -22,6 +23,10 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       loadDevice()
     }
   }, [deviceId])
+
+  useEffect(() => {
+    form.setFieldsValue(formData)
+  }, [formData, form])
 
   const loadNodes = async () => {
     try {
@@ -46,118 +51,122 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-
+  const handleSubmit = async () => {
     try {
+      await form.validateFields()
+      setLoading(true)
+
+      const requestFormData = {
+        ...formData,
+      }
+
       if (deviceId) {
-        await api.updateDeviceById(deviceId, formData)
+        await api.updateDeviceById(deviceId, requestFormData)
       } else {
-        await api.createDevice(formData)
+        await api.createDevice(requestFormData)
       }
       onSave()
     } catch (error) {
+      if (error.errorFields) {
+        // Валидация не прошла
+        return
+      }
       console.error('Error saving device:', error)
-      alert('Ошибка при сохранении устройства')
+      notification.error('Ошибка при сохранении устройства', error.message || "")
     } finally {
       setLoading(false)
     }
   }
 
+  const handleFormChange = (changedValues, allValues) => {
+    setFormData(prev => ({
+      ...prev,
+      ...changedValues
+    }))
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>{deviceId ? 'Редактировать устройство' : 'Создать устройство'}</h3>
-          <button className="btn-close" onClick={onClose}>×</button>
-        </div>
+    <Modal
+      title={deviceId ? 'Редактировать устройство' : 'Создать устройство'}
+      open={true}
+      onCancel={onClose}
+      onOk={handleSubmit}
+      confirmLoading={loading}
+      cancelText={"Отмена"}
+      okText={"Сохранить"}
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={handleFormChange}
+        onFinish={handleSubmit}
+        initialValues={formData}
+        disabled={loading}
+      >
+        <Form.Item
+          label="Узел связи"
+          name="connectionNodeId"
+          rules={[{required: true, message: 'Выберите узел связи'}]}
+        >
+          <Select disabled={!nodeId}>
+            <Select.Option value="">Выберите узел связи</Select.Option>
+            {nodes.map(node => (
+              <Select.Option key={node.id} value={node.id}>
+                {node.name} ({node.comPort})
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-        <form onSubmit={handleSubmit} className="form">
-          <div className="form-group">
-            <label>Узел связи</label>
-            <select
-              value={formData.connectionNodeId}
-              onChange={(e) => setFormData({...formData, connectionNodeId: e.target.value})}
-              required
-              disabled={!!nodeId}
-            >
-              <option value="">Выберите узел связи</option>
-              {nodes.map(node => (
-                <option key={node.id} value={node.id}>
-                  {node.name} ({node.comPort})
-                </option>
-              ))}
-            </select>
-          </div>
+        <Form.Item
+          label="Название"
+          name="name"
+          rules={[{required: true, message: 'Введите название устройства'}]}
+        >
+          <Input/>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>Название</label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
-              required
-            />
-          </div>
+        <Form.Item
+          label="Включен в работу"
+          name="enabled"
+          valuePropName="checked"
+        >
+          <Switch checkedChildren="on" unCheckedChildren="off"/>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>Адрес Modbus (0-255)</label>
-            <input
-              type="number"
-              min="0"
-              max="255"
-              value={formData.address}
-              onChange={(e) => setFormData({...formData, address: parseInt(e.target.value)})}
-              required
-            />
-          </div>
+        <Form.Item
+          label="Адрес Modbus (0-255)"
+          name="address"
+          rules={[
+            {required: true, message: 'Введите адрес Modbus'},
+            {type: 'number', min: 0, max: 255, message: 'Адрес должен быть от 0 до 255'}
+          ]}
+        >
+          <InputNumber min={0} max={255} style={{width: '100%'}}/>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>Время ответа (мс)</label>
-            <input
-              type="number"
-              min="100"
-              step="100"
-              value={formData.responseTimeout}
-              onChange={(e) => setFormData({...formData, responseTimeout: parseInt(e.target.value)})}
-              required
-            />
-          </div>
+        <Form.Item
+          label="Время ответа (мс)"
+          name="responseTimeout"
+          rules={[
+            {required: true, message: 'Введите время ответа'},
+            {type: 'number', min: 100, message: 'Время ответа должно быть не менее 100 мс'}
+          ]}
+        >
+          <InputNumber min={100} step={100} style={{width: '100%'}}/>
+        </Form.Item>
 
-          <div className="form-group">
-            <label>Период опроса (мс)</label>
-            <input
-              type="number"
-              min="100"
-              step="100"
-              value={formData.pollInterval}
-              onChange={(e) => setFormData({...formData, pollInterval: parseInt(e.target.value)})}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>
-              <input
-                type="checkbox"
-                checked={formData.enabled}
-                onChange={(e) => setFormData({...formData, enabled: e.target.checked})}
-              />
-              Включено
-            </label>
-          </div>
-
-          <div className="form-actions">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Отмена
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={loading}>
-              {loading ? 'Сохранение...' : 'Сохранить'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <Form.Item
+          label="Период опроса (мс)"
+          name="pollInterval"
+          rules={[
+            {required: true, message: 'Введите период опроса'},
+            {type: 'number', min: 100, message: 'Период опроса должен быть не менее 100 мс'}
+          ]}
+        >
+          <InputNumber min={100} step={100} style={{width: '100%'}}/>
+        </Form.Item>
+      </Form>
+    </Modal>
   )
 }

@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from 'react'
 import {Modal, Form, Input, Select, Switch, Alert} from 'antd'
-import './Form.css'
 import {api} from "../services/api.js";
 import {useNotification} from "../context/NotificationContext.jsx";
 
@@ -44,12 +43,14 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
   }
 
   const handleSubmit = async () => {
-
-    const requestFormData = {
-      ...formData,
-    }
-
     try {
+      await form.validateFields()
+      setLoading(true)
+
+      const requestFormData = {
+        ...formData,
+      }
+
       if (nodeId) {
         await api.updateNodeById(nodeId, requestFormData)
       } else {
@@ -57,6 +58,10 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
       }
       onSave()
     } catch (error) {
+      if (error.errorFields) {
+        // Валидация не прошла
+        return
+      }
       console.error('Error saving node:', error)
       notification.error('Ошибка при сохранении узла', error.message || "")
     } finally {
@@ -138,6 +143,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
             <Form.Item
               label="Скорость (бод)"
               name="baudRate"
+              rules={[{required: true, message: 'Выберите скорость'}]}
             >
               <Select>
                 <Select.Option value={9600}>9600</Select.Option>
@@ -151,6 +157,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
             <Form.Item
               label="Биты данных"
               name="dataBits"
+              rules={[{required: true, message: 'Выберите количество бит данных'}]}
             >
               <Select>
                 <Select.Option value={5}>5</Select.Option>
@@ -163,6 +170,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
             <Form.Item
               label="Стоп-биты"
               name="stopBits"
+              rules={[{required: true, message: 'Выберите количество стоп-бит'}]}
             >
               <Select>
                 <Select.Option value={1}>1</Select.Option>
@@ -173,6 +181,7 @@ export default function ConnectionNodeForm({nodeId, onClose, onSave}) {
             <Form.Item
               label="Четность"
               name="parity"
+              rules={[{required: true, message: 'Выберите четность'}]}
             >
               <Select>
                 <Select.Option value="none">Не используется</Select.Option>

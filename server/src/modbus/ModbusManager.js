@@ -523,17 +523,19 @@ export class ModbusManager {
         }
       });
 
+      const displayDeviceName = `${device.connectionNode.name} → ${device.name}`;
+
       if (!device) {
-        throw new Error('Устройство не найдено');
+        throw new Error(`Устройство ${displayDeviceName} не найдено`);
       }
 
       // Находим соединение узла связи
       const connection = this.connections.get(device.connectionNodeId);
       if (!connection || !connection.client) {
-        throw new Error(`Устройство ${device.connectionNode.name} → ${device.name} отключено. Проверьте питание`);
+        throw new Error(`Устройство ${displayDeviceName} отключено. Проверьте питание.`);
       }
 
-      console.log(`Reconnecting device ${device.name}...`);
+      console.log(`Reconnecting device ${displayDeviceName}...`);
 
       // Выполняем одноразовый опрос устройства с пропуском проверки enabled
       await this.pollDevice(device, connection.client, true);
@@ -559,7 +561,7 @@ export class ModbusManager {
 
       return {success: true, enabled: updatedDevice?.enabled};
     } catch (error) {
-      console.error(`Error reconnecting device ${deviceId}:`, error);
+      console.error(`Error reconnecting device ${displayDeviceName}:`, error);
       throw error;
     }
   }

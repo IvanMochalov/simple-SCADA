@@ -1,8 +1,30 @@
-import React, {useState} from 'react'
+import React, {useState, useMemo} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './RealTimeView.css'
 import {api} from "../services/api.js";
 import {useNotification} from "../context/NotificationContext";
+import {
+  Card,
+  Button,
+  Typography,
+  Collapse,
+  Tag,
+  Alert,
+  Empty,
+  Space,
+  Row,
+  Col,
+  Tooltip
+} from 'antd';
+import {
+  PlayCircleOutlined,
+  StopOutlined,
+  ReloadOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined
+} from '@ant-design/icons';
+
+const {Title, Text} = Typography;
 
 export default function RealTimeView() {
   const notification = useNotification();
@@ -11,6 +33,12 @@ export default function RealTimeView() {
   const [expandedDevices, setExpandedDevices] = useState(new Set())
   const [isModbusRunning, setIsModbusRunning] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
+
+  // Фильтруем только включенные узлы связи
+  const enabledNodes = useMemo(() => {
+    if (!state || !state.nodes) return []
+    return state.nodes.filter(node => node.enabled)
+  }, [state])
 
   const toggleNode = (nodeId) => {
     const newExpanded = new Set(expandedNodes)
@@ -30,14 +58,6 @@ export default function RealTimeView() {
       newExpanded.add(deviceId)
     }
     setExpandedDevices(newExpanded)
-  }
-
-  const getEnabledColor = (enabled) => {
-    return enabled ? '#27ae60' : '#95a5a6'
-  }
-
-  const getEnabledText = (enabled) => {
-    return enabled ? 'Включен в работу' : 'Не включен в работу'
   }
 
   const getTagValue = (deviceId, tagId) => {
@@ -88,9 +108,12 @@ export default function RealTimeView() {
   if (!isConnected) {
     return (
       <div className="realtime-view">
-        <div className="connection-warning">
-          <p>Нет подключения к серверу. Проверьте соединение.</p>
-        </div>
+        <Alert
+          title="Нет подключения к серверу"
+          description="Проверьте соединение с сервером."
+          type="warning"
+          showIcon
+        />
       </div>
     )
   }
@@ -98,139 +121,171 @@ export default function RealTimeView() {
   if (!state || !state.nodes || state.nodes.length === 0) {
     return (
       <div className="realtime-view">
-        <div className="empty-state">
-          <p>Нет узлов связи. Создайте узел связи в разделе "Конфигурация".</p>
-        </div>
+        <Empty
+          description="Нет узлов связи. Создайте узел связи в разделе 'Конфигурация'."
+        />
+      </div>
+    )
+  }
+
+  // Если нет включенных узлов, показываем предупреждение
+  if (enabledNodes.length === 0) {
+    return (
+      <div className="realtime-view">
+        <Space orientation="vertical" style={{width: '100%'}} size="large">
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <Title level={2}>Значения тегов в реальном времени</Title>
+          </div>
+          <Alert
+            message="Нет включенных узлов связи"
+            description="Для работы Modbus Server необходимо включить в работу хотя бы один узел связи в разделе 'Конфигурация'."
+            type="warning"
+            showIcon
+          />
+        </Space>
       </div>
     )
   }
 
   return (
     <div className="realtime-view">
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
-        <h2>Значения тегов в реальном времени</h2>
-        <button
-          onClick={handleToggleModbus}
-          disabled={isToggling || !isConnected}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: isModbusRunning ? '#e74c3c' : '#27ae60',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: isToggling || !isConnected ? 'not-allowed' : 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 'bold',
-            opacity: isToggling || !isConnected ? 0.6 : 1
-          }}
-        >
-          {isToggling ? '...' : (isModbusRunning ? '⏹ Остановить Modbus Server' : '▶ Запустить Modbus Server')}
-        </button>
-      </div>
+      <Space orientation="vertical" style={{width: '100%'}} size="large">
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <Title level={2}>Значения тегов в реальном времени</Title>
+          <Button
+            type={isModbusRunning ? 'danger' : 'primary'}
+            icon={isModbusRunning ? <StopOutlined/> : <PlayCircleOutlined/>}
+            onClick={handleToggleModbus}
+            loading={isToggling}
+            disabled={!isConnected}
+            size="large"
+          >
+            {isModbusRunning ? 'Остановить Modbus Server' : 'Запустить Modbus Server'}
+          </Button>
+        </div>
 
-      <div className="realtime-container">
-        {state.nodes.map(node => (
-          <div key={node.id} className="realtime-node">
-            <div className="node-header" onClick={() => toggleNode(node.id)}>
-              <span className="expand-icon">
-                {expandedNodes.has(node.id) ? '▼' : '▶'}
-              </span>
-              <span className="node-name">{node.name}</span>
-              <span className="node-info">{node.comPort}</span>
-            </div>
-
-            {expandedNodes.has(node.id) && (
-              <div className="node-content">
-                {node.devices.length === 0 ? (
-                  <div className="empty-devices">
-                    <p>Нет устройств</p>
-                  </div>
-                ) : (
-                  node.devices.map(device => (
-                    <div key={device.id} className="realtime-device">
-                      <div className="device-header">
-                        <div onClick={() => toggleDevice(device.id)}
-                             style={{display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, cursor: 'pointer'}}>
-                          <span className="expand-icon">
-                            {expandedDevices.has(device.id) ? '▼' : '▶'}
-                          </span>
-                          <span className="device-name">{device.name}</span>
-                          <span
-                            className="device-status"
-                            style={{color: getEnabledColor(device.enabled)}}
-                          >
-                            {getEnabledText(device.enabled)}
-                          </span>
-                        </div>
-                        {isModbusRunning && (
-                          <button
-                            className="btn-icon"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleReconnectDevice(device.id)
-                            }}
-                            title="Переподключить"
-                          >
-                            🔄
-                          </button>
-                        )}
-                      </div>
-
-                      {expandedDevices.has(device.id) && (
-                        <div className="device-content">
-                          {device.tags.length === 0 ? (
-                            <div className="empty-tags">
-                              <p>Нет тегов</p>
-                            </div>
-                          ) : (
-                            <div className="tags-grid">
-                              {device.tags.map(tag => {
-                                const tagValue = getTagValue(device.id, tag.id)
-                                return (
-                                  <div key={tag.id} className="tag-card">
-                                    <div className="tag-header">
-                                      <span className="tag-name">{tag.name}</span>
-                                      <span className="tag-address">Адрес: {tag.address}</span>
-                                    </div>
-                                    <div className="tag-value-container">
-                                      {!isModbusRunning ? (
-                                          <div className="tag-value no-data">
-                                            Запустите Modbus Server
-                                          </div>
-                                        ) :
-                                        tagValue ? (
-                                          <>
-                                            <div className="tag-value">
-                                              {tagValue.value !== null ? tagValue.value : '—'}
+        <Space orientation="vertical" style={{width: '100%'}} size="middle">
+          {enabledNodes.map(node => (
+            <Card key={node.id} size="small">
+              <Collapse
+                activeKey={expandedNodes.has(node.id) ? [node.id] : []}
+                onChange={() => toggleNode(node.id)}
+                ghost
+                items={[{
+                  key: node.id,
+                  label: (
+                    <Space>
+                      <Text strong>{node.name}</Text>
+                      <Tag color="blue">{node.comPort}</Tag>
+                      <Tag
+                        color={node.enabled ? 'success' : 'default'}
+                        icon={node.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                      >
+                        {node.enabled ? 'Включен' : 'Не включен'}
+                      </Tag>
+                    </Space>
+                  ),
+                  children: node.devices.length === 0 ? (
+                    <Empty description="Нет устройств" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                  ) : (
+                    <Space orientation="vertical" style={{width: '100%'}} size="small">
+                      {node.devices.map(device => (
+                        <Card key={device.id} size="small" style={{marginTop: 8}} className="device-card">
+                          <Collapse
+                            activeKey={expandedDevices.has(device.id) ? [device.id] : []}
+                            onChange={() => toggleDevice(device.id)}
+                            ghost
+                            items={[{
+                              key: device.id,
+                              label: (
+                                <Space style={{width: '100%', justifyContent: 'space-between'}}>
+                                  <Space>
+                                    <Text strong>{device.name}</Text>
+                                    <Tag
+                                      color={device.enabled ? 'success' : 'default'}
+                                      icon={device.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                                    >
+                                      {device.enabled ? 'Включен' : 'Не включен'}
+                                    </Tag>
+                                  </Space>
+                                  {device.enabled && (
+                                    <Tooltip title="Переподключить устройство">
+                                      <Button
+                                        type="text"
+                                        icon={<ReloadOutlined/>}
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleReconnectDevice(device.id)
+                                        }}
+                                      />
+                                    </Tooltip>
+                                  )}
+                                </Space>
+                              ),
+                              children: device.tags.length === 0 ? (
+                                <Empty description="Нет тегов" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                              ) : (
+                                <Row gutter={[16, 16]}>
+                                  {device.tags.map(tag => {
+                                    const tagValue = getTagValue(device.id, tag.id)
+                                    return (
+                                      <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
+                                        <Card size="small" className="tag-card">
+                                          <Space orientation="vertical" style={{width: '100%', textAlign: 'center'}}>
+                                            <div>
+                                              <Space>
+                                                <Text strong>{tag.name}</Text>
+                                                <Tag
+                                                  color={tag.enabled ? 'success' : 'default'}
+                                                  icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                                                  style={{fontSize: '10px'}}
+                                                >
+                                                  {tag.enabled ? 'Вкл' : 'Выкл'}
+                                                </Tag>
+                                              </Space>
+                                              <br/>
+                                              <Text type="secondary" style={{fontSize: '12px'}}>
+                                                Адрес: {tag.address}
+                                              </Text>
                                             </div>
-                                            {tagValue.error && (
-                                              <div className="tag-error">{tagValue.error}</div>
+                                            {!isModbusRunning ? (
+                                              <Text type="secondary">Запустите Modbus Server</Text>
+                                            ) : tagValue ? (
+                                              <>
+                                                <div className="tag-value">
+                                                  {tagValue.value !== null ? tagValue.value : '—'}
+                                                </div>
+                                                {tagValue.error && (
+                                                  <Text type="danger" style={{fontSize: '12px'}}>
+                                                    {tagValue.error}
+                                                  </Text>
+                                                )}
+                                                <Text type="secondary" style={{fontSize: '11px'}}>
+                                                  {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
+                                                </Text>
+                                              </>
+                                            ) : (
+                                              <Text type="secondary">Нет данных</Text>
                                             )}
-                                            <div className="tag-timestamp">
-                                              {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
-                                            </div>
-                                          </>
-                                        ) : (
-                                          <div className="tag-value no-data">
-                                            Нет данных
-                                          </div>
-                                        )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+                                          </Space>
+                                        </Card>
+                                      </Col>
+                                    )
+                                  })}
+                                </Row>
+                              )
+                            }]}
+                          />
+                        </Card>
+                      ))}
+                    </Space>
+                  )
+                }]}
+              />
+            </Card>
+          ))}
+        </Space>
+      </Space>
     </div>
   )
 }

@@ -5,9 +5,29 @@ import DeviceForm from './DeviceForm'
 import TagForm from './TagForm'
 import './ConnectionTree.css'
 import {api} from "../services/api.js";
-import {Button} from 'antd';
-import {AppstoreAddOutlined} from '@ant-design/icons';
+import {
+  Card,
+  Button,
+  Typography,
+  Collapse,
+  Tag,
+  Empty,
+  Space,
+  Modal,
+  Tooltip
+} from 'antd';
+import {
+  AppstoreAddOutlined,
+  EditOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined
+} from '@ant-design/icons';
 import {useNotification} from "../context/NotificationContext.jsx";
+
+const {Title, Text} = Typography;
+const {confirm} = Modal;
 
 
 export default function ConnectionTree() {
@@ -21,6 +41,7 @@ export default function ConnectionTree() {
   const [showTagForm, setShowTagForm] = useState(false)
   const [selectedNodeId, setSelectedNodeId] = useState(null)
   const [selectedDeviceId, setSelectedDeviceId] = useState(null)
+  const [selectedTagId, setSelectedTagId] = useState(null)
 
   useEffect(() => {
     loadNodes()
@@ -62,194 +83,258 @@ export default function ConnectionTree() {
   }
 
   const handleDeleteNode = async (nodeId) => {
-    if (!confirm('Удалить узел связи?')) return
-    try {
-      await api.removeNodeById(nodeId)
-      await loadNodes()
-      refreshState()
-    } catch (error) {
-      console.error('Error deleting node:', error)
-      notification.error('Ошибка при удалении узла', error.message || "")
-    }
+    confirm({
+      title: 'Удалить узел связи?',
+      content: 'Это действие нельзя отменить.',
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await api.removeNodeById(nodeId)
+          await loadNodes()
+          refreshState()
+          notification.success('Узел связи удален')
+        } catch (error) {
+          console.error('Error deleting node:', error)
+          notification.error('Ошибка при удалении узла', error.message || "")
+        }
+      }
+    })
   }
 
   const handleDeleteDevice = async (deviceId, nodeId) => {
-    if (!confirm('Удалить устройство?')) return
-    try {
-      await api.removeDeviceById(deviceId)
-      await loadNodes()
-      refreshState()
-    } catch (error) {
-      console.error('Error deleting device:', error)
-      notification.error('Ошибка при удалении устройства', error.message || "")
-    }
+    confirm({
+      title: 'Удалить устройство?',
+      content: 'Это действие нельзя отменить.',
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await api.removeDeviceById(deviceId)
+          await loadNodes()
+          refreshState()
+          notification.success('Устройство удалено')
+        } catch (error) {
+          console.error('Error deleting device:', error)
+          notification.error('Ошибка при удалении устройства', error.message || "")
+        }
+      }
+    })
   }
 
   const handleDeleteTag = async (tagId, deviceId) => {
-    if (!confirm('Удалить тег?')) return
-    try {
-      await api.removeTagById(tagId)
-      await loadNodes()
-      refreshState()
-    } catch (error) {
-      console.error('Error deleting tag:', error)
-      notification.error('Ошибка при удалении тега', error.message || "")
-    }
+    confirm({
+      title: 'Удалить тег?',
+      content: 'Это действие нельзя отменить.',
+      okText: 'Удалить',
+      okType: 'danger',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await api.removeTagById(tagId)
+          await loadNodes()
+          refreshState()
+          notification.success('Тег удален')
+        } catch (error) {
+          console.error('Error deleting tag:', error)
+          notification.error('Ошибка при удалении тега', error.message || "")
+        }
+      }
+    })
   }
 
   return (
     <div className="connection-tree">
-      <div className="tree-header">
-        <h2>Конфигурация узлов связи</h2>
-        <Button
-          type="primary"
-          onClick={() => {
-            setSelectedNodeId(null)
-            setShowNodeForm(true)
-          }}
-          icon={<AppstoreAddOutlined/>}
-        >
-          Добавить узел связи
-        </Button>
-      </div>
+      <Space orientation="vertical" style={{width: '100%'}} size="large">
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+          <Title level={2}>Конфигурация узлов связи</Title>
+          <Button
+            type="primary"
+            onClick={() => {
+              setSelectedNodeId(null)
+              setShowNodeForm(true)
+            }}
+            icon={<AppstoreAddOutlined/>}
+          >
+            Добавить узел связи
+          </Button>
+        </div>
 
-      <div className="tree-container">
         {nodes.length === 0 ? (
-          <div className="empty-state">
-            <p>Нет узлов связи. Создайте первый узел связи.</p>
-          </div>
+          <Empty description="Нет узлов связи. Создайте первый узел связи."/>
         ) : (
-          nodes.map(node => (
-            <div key={node.id} className="tree-node">
-              <div className="node-header" onClick={() => toggleNode(node.id)}>
-                <span className="expand-icon">
-                  {expandedNodes.has(node.id) ? '▼' : '▶'}
-                </span>
-                <span className="node-name">{node.name}</span>
-                <span className="node-info">
-                  {node.comPort} | {node.baudRate} бод
-                </span>
-                <div className="node-actions">
-                  <button
-                    className="btn-icon"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedNodeId(node.id)
-                      setShowNodeForm(true)
-                    }}
-                    title="Редактировать"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    className="btn-icon"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedNodeId(node.id)
-                      setShowDeviceForm(true)
-                    }}
-                    title="Добавить устройство"
-                  >
-                    ➕
-                  </button>
-                  <button
-                    className="btn-icon"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleDeleteNode(node.id)
-                    }}
-                    title="Удалить"
-                  >
-                    🗑️
-                  </button>
-                </div>
-              </div>
-
-              {expandedNodes.has(node.id) && (
-                <div className="node-content">
-                  {node.devices.length === 0 ? (
-                    <div className="empty-devices">
-                      <p>Нет устройств. Добавьте устройство.</p>
-                    </div>
-                  ) : (
-                    node.devices.map(device => (
-                      <div key={device.id} className="tree-device">
-                        <div className="device-header" onClick={() => toggleDevice(device.id)}>
-                          <span className="expand-icon">
-                            {expandedDevices.has(device.id) ? '▼' : '▶'}
-                          </span>
-                          <span className="device-name">{device.name}</span>
-                          <div className="device-actions">
-                            <button
-                              className="btn-icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedDeviceId(device.id)
+          <Space orientation="vertical" style={{width: '100%'}} size="middle">
+            {nodes.map(node => (
+              <Card key={node.id} size="small">
+                <Collapse
+                  activeKey={expandedNodes.has(node.id) ? [node.id] : []}
+                  onChange={() => toggleNode(node.id)}
+                  ghost
+                  items={[{
+                    key: node.id,
+                    label: (
+                      <Space style={{width: '100%', justifyContent: 'space-between'}}>
+                        <Space>
+                          <Text strong>{node.name}</Text>
+                          <Tag color="blue">{node.comPort}</Tag>
+                          <Tag
+                            color={node.enabled ? 'success' : 'default'}
+                            icon={node.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                          >
+                            {node.enabled ? 'Включен' : 'Не включен'}
+                          </Tag>
+                        </Space>
+                        <Space onClick={(e) => e.stopPropagation()}>
+                          <Tooltip title="Редактировать узел связи">
+                            <Button
+                              type="text"
+                              icon={<EditOutlined/>}
+                              onClick={() => {
+                                setSelectedNodeId(node.id)
+                                setShowNodeForm(true)
+                              }}
+                            />
+                          </Tooltip>
+                          <Tooltip title="Добавить устройство">
+                            <Button
+                              type="text"
+                              icon={<PlusOutlined/>}
+                              onClick={() => {
+                                setSelectedNodeId(node.id)
                                 setShowDeviceForm(true)
                               }}
-                              title="Редактировать"
-                            >
-                              ✏️
-                            </button>
-                            <button
-                              className="btn-icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedDeviceId(device.id)
-                                setSelectedNodeId(node.id)
-                                setShowTagForm(true)
-                              }}
-                              title="Добавить тег"
-                            >
-                              ➕
-                            </button>
-                            <button
-                              className="btn-icon"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteDevice(device.id, node.id)
-                              }}
-                              title="Удалить"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </div>
-
-                        {expandedDevices.has(device.id) && (
-                          <div className="device-content">
-                            {device.tags.length === 0 ? (
-                              <div className="empty-tags">
-                                <p>Нет тегов. Добавьте тег.</p>
-                              </div>
-                            ) : (
-                              device.tags.map(tag => (
-                                <div key={tag.id} className="tree-tag">
-                                  <span className="tag-name">{tag.name}</span>
-                                  <span className="tag-info">
-                                    Адрес: {tag.address} | {tag.registerType} | {tag.accessType}
-                                  </span>
-                                  <button
-                                    className="btn-icon"
-                                    onClick={() => handleDeleteTag(tag.id, device.id)}
-                                    title="Удалить"
-                                  >
-                                    🗑️
-                                  </button>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          ))
+                            />
+                          </Tooltip>
+                          <Tooltip title="Удалить узел связи">
+                            <Button
+                              type="text"
+                              danger
+                              icon={<DeleteOutlined/>}
+                              onClick={() => handleDeleteNode(node.id)}
+                            />
+                          </Tooltip>
+                        </Space>
+                      </Space>
+                    ),
+                    children: node.devices.length === 0 ? (
+                      <Empty description="Нет устройств. Добавьте устройство." image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                    ) : (
+                      <Space orientation="vertical" style={{width: '100%'}} size="small">
+                        {node.devices.map(device => (
+                          <Card key={device.id} size="small" style={{marginTop: 8}}>
+                            <Collapse
+                              activeKey={expandedDevices.has(device.id) ? [device.id] : []}
+                              onChange={() => toggleDevice(device.id)}
+                              ghost
+                              items={[{
+                                key: device.id,
+                                label: (
+                                  <Space style={{width: '100%', justifyContent: 'space-between'}}>
+                                    <Space>
+                                      <Text strong>{device.name}</Text>
+                                      <Tag
+                                        color={device.enabled ? 'success' : 'default'}
+                                        icon={device.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                                      >
+                                        {device.enabled ? 'Включен' : 'Не включен'}
+                                      </Tag>
+                                    </Space>
+                                    <Space onClick={(e) => e.stopPropagation()}>
+                                      <Tooltip title="Редактировать устройство">
+                                        <Button
+                                          type="text"
+                                          icon={<EditOutlined/>}
+                                          onClick={() => {
+                                            setSelectedDeviceId(device.id)
+                                            setShowDeviceForm(true)
+                                          }}
+                                        />
+                                      </Tooltip>
+                                      <Tooltip title="Добавить тег">
+                                        <Button
+                                          type="text"
+                                          icon={<PlusOutlined/>}
+                                          onClick={() => {
+                                            setSelectedDeviceId(device.id)
+                                            setSelectedNodeId(node.id)
+                                            setShowTagForm(true)
+                                          }}
+                                        />
+                                      </Tooltip>
+                                      <Tooltip title="Удалить устройство">
+                                        <Button
+                                          type="text"
+                                          danger
+                                          icon={<DeleteOutlined/>}
+                                          onClick={() => handleDeleteDevice(device.id, node.id)}
+                                        />
+                                      </Tooltip>
+                                    </Space>
+                                  </Space>
+                                ),
+                                children: device.tags.length === 0 ? (
+                                  <Empty description="Нет тегов. Добавьте тег." image={Empty.PRESENTED_IMAGE_SIMPLE}/>
+                                ) : (
+                                  <Space orientation="vertical" style={{width: '100%'}} size="small">
+                                    {device.tags.map(tag => (
+                                      <Card key={tag.id} size="small" style={{background: '#fafafa'}}>
+                                        <Space style={{width: '100%', justifyContent: 'space-between'}}>
+                                          <Space orientation="vertical" size={0}>
+                                            <Space>
+                                              <Text strong>{tag.name}</Text>
+                                              <Tag
+                                                color={tag.enabled ? 'success' : 'default'}
+                                                icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                                                style={{fontSize: '10px'}}
+                                              >
+                                                {tag.enabled ? 'Вкл' : 'Выкл'}
+                                              </Tag>
+                                            </Space>
+                                            <Text type="secondary" style={{fontSize: '12px'}}>
+                                              Адрес: {tag.address} | {tag.registerType} | {tag.accessType}
+                                            </Text>
+                                          </Space>
+                                          <Space onClick={(e) => e.stopPropagation()}>
+                                            <Tooltip title="Редактировать тег">
+                                              <Button
+                                                type="text"
+                                                icon={<EditOutlined/>}
+                                                onClick={() => {
+                                                  setSelectedTagId(tag.id)
+                                                  setSelectedDeviceId(device.id)
+                                                  setShowTagForm(true)
+                                                }}
+                                              />
+                                            </Tooltip>
+                                            <Tooltip title="Удалить тег">
+                                              <Button
+                                                type="text"
+                                                danger
+                                                icon={<DeleteOutlined/>}
+                                                onClick={() => handleDeleteTag(tag.id, device.id)}
+                                              />
+                                            </Tooltip>
+                                          </Space>
+                                        </Space>
+                                      </Card>
+                                    ))}
+                                  </Space>
+                                )
+                              }]}
+                            />
+                          </Card>
+                        ))}
+                      </Space>
+                    )
+                  }]}
+                />
+              </Card>
+            ))}
+          </Space>
         )}
-      </div>
+      </Space>
 
       {showNodeForm && (
         <ConnectionNodeForm
@@ -288,15 +373,18 @@ export default function ConnectionTree() {
 
       {showTagForm && (
         <TagForm
+          tagId={selectedTagId}
           deviceId={selectedDeviceId}
           onClose={() => {
             setShowTagForm(false)
+            setSelectedTagId(null)
             setSelectedDeviceId(null)
           }}
           onSave={async () => {
             await loadNodes()
             refreshState()
             setShowTagForm(false)
+            setSelectedTagId(null)
             setSelectedDeviceId(null)
           }}
         />
