@@ -37,7 +37,7 @@ export default function RealTimeView() {
   }
 
   const getEnabledText = (enabled) => {
-    return enabled ? 'Включено' : 'Отключено'
+    return enabled ? 'Включен в работу' : 'Не включен в работу'
   }
 
   const getTagValue = (deviceId, tagId) => {
@@ -162,16 +162,18 @@ export default function RealTimeView() {
                             {getEnabledText(device.enabled)}
                           </span>
                         </div>
-                        <button
-                          className="btn-icon"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleReconnectDevice(device.id)
-                          }}
-                          title="Переподключить"
-                        >
-                          🔄
-                        </button>
+                        {isModbusRunning && (
+                          <button
+                            className="btn-icon"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleReconnectDevice(device.id)
+                            }}
+                            title="Переподключить"
+                          >
+                            🔄
+                          </button>
+                        )}
                       </div>
 
                       {expandedDevices.has(device.id) && (
@@ -191,23 +193,28 @@ export default function RealTimeView() {
                                       <span className="tag-address">Адрес: {tag.address}</span>
                                     </div>
                                     <div className="tag-value-container">
-                                      {tagValue ? (
-                                        <>
-                                          <div className="tag-value">
-                                            {tagValue.value !== null ? tagValue.value : '—'}
+                                      {!isModbusRunning ? (
+                                          <div className="tag-value no-data">
+                                            Запустите Modbus Server
                                           </div>
-                                          {tagValue.error && (
-                                            <div className="tag-error">{tagValue.error}</div>
-                                          )}
-                                          <div className="tag-timestamp">
-                                            {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
+                                        ) :
+                                        tagValue ? (
+                                          <>
+                                            <div className="tag-value">
+                                              {tagValue.value !== null ? tagValue.value : '—'}
+                                            </div>
+                                            {tagValue.error && (
+                                              <div className="tag-error">{tagValue.error}</div>
+                                            )}
+                                            <div className="tag-timestamp">
+                                              {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <div className="tag-value no-data">
+                                            Нет данных
                                           </div>
-                                        </>
-                                      ) : (
-                                        <div className="tag-value no-data">
-                                          Нет данных
-                                        </div>
-                                      )}
+                                        )}
                                     </div>
                                   </div>
                                 )

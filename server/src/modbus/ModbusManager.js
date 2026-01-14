@@ -530,7 +530,7 @@ export class ModbusManager {
       // Находим соединение узла связи
       const connection = this.connections.get(device.connectionNodeId);
       if (!connection || !connection.client) {
-        throw new Error('Устройство выключено');
+        throw new Error(`Устройство ${device.connectionNode.name} → ${device.name} отключено. Проверьте питание`);
       }
 
       console.log(`Reconnecting device ${device.name}...`);
