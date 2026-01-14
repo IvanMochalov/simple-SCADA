@@ -15,18 +15,19 @@
   .history-view {
     padding: 8px;
   }
-
-  .history-view .ant-col {
-    margin-bottom: 16px;
-  }
 }
 
-/* Сохраним кастомные стили если они нужны */
-.filter-group {
+/* Стили для Space компонентов в форме фильтров */
+.history-view .ant-space {
+  width: 100%;
   display: flex;
-  flex-direction: column;
 }
 
-.history-table-container {
-  margin-top: 24px;
+.history-view .ant-space-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-view .ant-space-item .ant-picker {
+  width: 100%;
 }

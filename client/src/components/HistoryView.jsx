@@ -260,7 +260,7 @@ export default function HistoryView() {
             }
           }}
         >
-          <Row gutter={[16, 16]}>
+          <Row gutter={[16, 0]}>
             <Col xs={24} lg={8}>
               <Form.Item
                 label="Устройство"
@@ -279,20 +279,18 @@ export default function HistoryView() {
               <Form.Item
                 label="Начало"
               >
-                <Space>
+                <Space style={{width: '100%'}}>
                   <DatePicker
                     value={startDate}
                     onChange={handleStartDateTimeChange}
                     format="DD.MM.YYYY"
                     placeholder="Дата"
-                    style={{width: '100%'}}
                   />
                   <TimePicker
                     value={startDate}
                     onChange={handleStartTimeChange}
                     format="HH:mm"
                     placeholder="Время"
-                    style={{width: '100%'}}
                   />
                 </Space>
               </Form.Item>
@@ -302,13 +300,12 @@ export default function HistoryView() {
               <Form.Item
                 label="Конец"
               >
-                <Space>
+                <Space style={{width: '100%'}}>
                   <DatePicker
                     value={endDate}
                     onChange={handleEndDateTimeChange}
                     format="DD.MM.YYYY"
                     placeholder="Дата"
-                    style={{width: '100%'}}
                     disabledDate={(current) => {
                       if (!current || !startDate) return false
                       return current.isBefore(startDate, 'day')
@@ -319,7 +316,6 @@ export default function HistoryView() {
                     onChange={handleEndTimeChange}
                     format="HH:mm"
                     placeholder="Время"
-                    style={{width: '100%'}}
                     disabledTime={() => {
                       if (!endDate || !startDate) return {}
                       
@@ -379,6 +375,7 @@ export default function HistoryView() {
                 columns={columns}
                 rowKey="id"
                 size="small"
+                scroll={{ x: 'max-content', y: undefined }}
                 pagination={{
                   defaultPageSize: 10,
                   showSizeChanger: true,
