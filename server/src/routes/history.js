@@ -95,6 +95,7 @@ export default function historyRoutes(prisma) {
         if (endTime) where.timestamp.lte = new Date(endTime);
       }
 
+      // Получаем все записи истории
       const history = await prisma.historyData.findMany({
         where,
         include: {
@@ -111,11 +112,83 @@ export default function historyRoutes(prisma) {
             }
           }
         },
-        orderBy: { timestamp: 'desc' },
+        orderBy: { timestamp: 'asc' },
         take: parseInt(limit)
       });
 
-      res.json(history);
+      // Группируем данные по нормализованным временным меткам (до секунды)
+      const groupedByTime = {};
+      const uniqueTags = {};
+
+      history.forEach(item => {
+        if (!item.tag || !item.tag.id) return;
+
+        // Нормализуем временную метку до секунды для группировки
+        const timestamp = new Date(item.timestamp);
+        const normalizedTime = new Date(
+          timestamp.getFullYear(),
+          timestamp.getMonth(),
+          timestamp.getDate(),
+          timestamp.getHours(),
+          timestamp.getMinutes(),
+          timestamp.getSeconds()
+        ).toISOString();
+
+        // Группируем по времени
+        if (!groupedByTime[normalizedTime]) {
+          groupedByTime[normalizedTime] = {
+            timestamp: normalizedTime,
+            tags: {}
+          };
+        }
+
+        // Сохраняем значение тега для этого времени
+        groupedByTime[normalizedTime].tags[item.tag.id] = {
+          value: item.value,
+          tag: item.tag,
+          device: item.device
+        };
+
+        // Собираем уникальные теги
+        if (!uniqueTags[item.tag.id]) {
+          uniqueTags[item.tag.id] = {
+            id: item.tag.id,
+            name: item.tag.name,
+            deviceName: item.device?.name || 'Неизвестно'
+          };
+        }
+      });
+
+      // Преобразуем сгруппированные данные в массив строк для таблицы
+      const tableData = Object.keys(groupedByTime)
+        .sort()
+        .map(normalizedTime => {
+          const timeGroup = groupedByTime[normalizedTime];
+          const row = {
+            timestamp: normalizedTime,
+            tags: {}
+          };
+
+          // Заполняем значения тегов
+          Object.keys(uniqueTags).forEach(tagId => {
+            if (timeGroup.tags[tagId]) {
+              row.tags[tagId] = {
+                value: timeGroup.tags[tagId].value,
+                tag: timeGroup.tags[tagId].tag
+              };
+            } else {
+              row.tags[tagId] = null;
+            }
+          });
+
+          return row;
+        });
+
+      // Возвращаем сгруппированные данные и список тегов
+      res.json({
+        data: tableData,
+        tags: Object.values(uniqueTags)
+      });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

@@ -14,6 +14,7 @@ import {
   Col,
   Typography,
   Empty,
+  Form,
 } from 'antd';
 import dayjs from 'dayjs';
 import {useNotification} from "../context/NotificationContext.jsx";
@@ -23,47 +24,39 @@ const {Title, Text} = Typography;
 export default function HistoryView() {
   const notification = useNotification();
   const {state} = useWebSocket()
+  const [form] = Form.useForm()
 
   const [selectedDevice, setSelectedDevice] = useState("")
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
 
-  // Преобразуем историю в табличный формат
+  // Преобразуем историю в табличный формат (данные уже сгруппированы на сервере)
   const transformedData = useMemo(() => {
-    if (!history || history.length === 0) return {data: []};
+    if (!history || !history.data || history.data.length === 0) {
+      return {data: [], tags: history?.tags || []};
+    }
 
-    // Собираем уникальные временные метки
-    const timestamps = [...new Set(history.map(item => item.timestamp))].sort();
-
-    // Собираем уникальные теги
-    const uniqueTags = {};
-    history.forEach(item => {
-      if (item.tag && item.tag.id) {
-        uniqueTags[item.tag.id] = {
-          id: item.tag.id,
-          name: item.tag.name,
-          deviceName: item.device?.name || 'Неизвестно'
-        };
-      }
-    });
-
-    const tags = Object.values(uniqueTags);
-
-    // Создаем строки для таблицы
-    const tableData = timestamps.map(timestamp => {
-      const row = {id: timestamp, timestamp};
-
-      // Находим все записи для этого времени
-      const recordsAtTime = history.filter(item => item.timestamp === timestamp);
+    // Данные уже сгруппированы на сервере, просто преобразуем в формат для таблицы
+    const tags = history.tags || [];
+    const tableData = history.data.map((row, index) => {
+      const tableRow = {
+        id: row.timestamp,
+        timestamp: row.timestamp,
+        key: `row-${index}`
+      };
 
       // Заполняем значения тегов
       tags.forEach(tag => {
-        const record = recordsAtTime.find(item => item.tag.id === tag.id);
-        row[`tag_${tag.id}`] = record ? record.value : null;
-        row[`tag_${tag.id}_name`] = tag.name; // Для удобства
+        if (row.tags && row.tags[tag.id]) {
+          tableRow[`tag_${tag.id}`] = row.tags[tag.id].value;
+          tableRow[`tag_${tag.id}_name`] = tag.name;
+        } else {
+          tableRow[`tag_${tag.id}`] = null;
+          tableRow[`tag_${tag.id}_name`] = tag.name;
+        }
       });
 
-      return row;
+      return tableRow;
     });
 
     return {
@@ -122,13 +115,14 @@ export default function HistoryView() {
     try {
       const response = await api.getHistoryDeviceById(selectedDevice, {
         params: {
-          startTime: startDate.toISOString(),
-          endTime: endDate.toISOString(),
+          startTime: startDate.format('YYYY-MM-DDTHH:mm:ss'),
+          endTime: endDate.format('YYYY-MM-DDTHH:mm:ss'),
           limit: 10000
         }
       })
       notification.success(`История устройства ${currentDeviceName} успешно загружена`)
-      setHistory(response.data.reverse()) // Показываем от старых к новым
+      // Сервер возвращает уже сгруппированные данные в формате {data: [], tags: []}
+      setHistory(response.data)
     } catch (error) {
       console.error('Error loading history:', error)
       notification.error('Ошибка загрузки истории устройства', error.message || "")
@@ -189,29 +183,37 @@ export default function HistoryView() {
   }, [transformedData.tags]);
 
   // Обработчик изменения начальной даты
-  const handleStartDateTimeChange = (date, dateString) => {
+  const handleStartDateTimeChange = (date) => {
     if (date) {
       setStartDate(date);
+      // Если конечная дата меньше новой начальной, обновляем конечную дату
+      if (endDate.isBefore(date)) {
+        setEndDate(date);
+      }
     }
   }
 
   // Обработчик изменения конечной даты
-  const handleEndDateTimeChange = (date, dateString) => {
+  const handleEndDateTimeChange = (date) => {
     if (date) {
       setEndDate(date);
     }
   }
 
   // Обработчик изменения времени для начальной даты
-  const handleStartTimeChange = (time, timeString) => {
+  const handleStartTimeChange = (time) => {
     if (time) {
       const newDate = startDate.hour(time.hour()).minute(time.minute());
       setStartDate(newDate);
+      // Если конечная дата меньше новой начальной, обновляем конечную дату
+      if (endDate.isBefore(newDate)) {
+        setEndDate(newDate);
+      }
     }
   }
 
   // Обработчик изменения времени для конечной даты
-  const handleEndTimeChange = (time, timeString) => {
+  const handleEndTimeChange = (time) => {
     if (time) {
       const newDate = endDate.hour(time.hour()).minute(time.minute());
       setEndDate(newDate);
@@ -245,80 +247,121 @@ export default function HistoryView() {
           }
         }}
       >
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={8}>
-            <div className="filter-group">
-              <Text strong style={{display: 'block', marginBottom: 8}}>
-                Устройство
-              </Text>
-              <Select
-                value={selectedDevice}
-                onChange={(value) => {
-                  setSelectedDevice(value)
-                  setHistory([])
-                }}
-                options={selectDeviceOptions}
-                placeholder="Выберите устройство"
-                style={{width: '100%'}}
-              />
-            </div>
-          </Col>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{
+            device: selectedDevice,
+          }}
+          onValuesChange={(changedValues) => {
+            if (changedValues.device !== undefined) {
+              setSelectedDevice(changedValues.device)
+              setHistory([])
+            }
+          }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={8}>
+              <Form.Item
+                label="Устройство"
+                name="device"
+                rules={[{required: true, message: 'Выберите устройство'}]}
+              >
+                <Select
+                  options={selectDeviceOptions}
+                  placeholder="Выберите устройство"
+                  style={{width: '100%'}}
+                />
+              </Form.Item>
+            </Col>
 
-          <Col xs={24} lg={8}>
-            <div className="filter-group">
-              <Text strong style={{display: 'block', marginBottom: 8}}>
-                Начало
-              </Text>
-              <Space>
-                <DatePicker
-                  value={startDate}
-                  onChange={(date, dateString) => handleStartDateTimeChange(date, dateString)}
-                  format="DD.MM.YYYY"
-                  placeholder="Дата"
-                />
-                <TimePicker
-                  value={startDate}
-                  onChange={handleStartTimeChange}
-                  format="HH:mm"
-                  placeholder="Время"
-                />
-              </Space>
-            </div>
-          </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item
+                label="Начало"
+              >
+                <Space>
+                  <DatePicker
+                    value={startDate}
+                    onChange={handleStartDateTimeChange}
+                    format="DD.MM.YYYY"
+                    placeholder="Дата"
+                    style={{width: '100%'}}
+                  />
+                  <TimePicker
+                    value={startDate}
+                    onChange={handleStartTimeChange}
+                    format="HH:mm"
+                    placeholder="Время"
+                    style={{width: '100%'}}
+                  />
+                </Space>
+              </Form.Item>
+            </Col>
 
-          <Col xs={24} lg={8}>
-            <div className="filter-group">
-              <Text strong style={{display: 'block', marginBottom: 8}}>
-                Конец
-              </Text>
-              <Space>
-                <DatePicker
-                  value={endDate}
-                  onChange={(date, dateString) => handleEndDateTimeChange(date, dateString)}
-                  format="DD.MM.YYYY"
-                  placeholder="Дата"
-                />
-                <TimePicker
-                  value={endDate}
-                  onChange={handleEndTimeChange}
-                  format="HH:mm"
-                  placeholder="Время"
-                />
-              </Space>
-            </div>
-          </Col>
+            <Col xs={24} lg={8}>
+              <Form.Item
+                label="Конец"
+              >
+                <Space>
+                  <DatePicker
+                    value={endDate}
+                    onChange={handleEndDateTimeChange}
+                    format="DD.MM.YYYY"
+                    placeholder="Дата"
+                    style={{width: '100%'}}
+                    disabledDate={(current) => {
+                      if (!current || !startDate) return false
+                      return current.isBefore(startDate, 'day')
+                    }}
+                  />
+                  <TimePicker
+                    value={endDate}
+                    onChange={handleEndTimeChange}
+                    format="HH:mm"
+                    placeholder="Время"
+                    style={{width: '100%'}}
+                    disabledTime={() => {
+                      if (!endDate || !startDate) return {}
+                      
+                      // Если даты одинаковые, ограничиваем время
+                      if (endDate.isSame(startDate, 'day')) {
+                        const startHour = startDate.hour()
+                        const startMinute = startDate.minute()
+                        
+                        return {
+                          disabledHours: () => {
+                            // Отключаем все часы до часа начала
+                            return Array.from({length: startHour}, (_, i) => i)
+                          },
+                          disabledMinutes: (selectedHour) => {
+                            // Если выбран час начала, отключаем минуты до минуты начала
+                            if (selectedHour === startHour) {
+                              return Array.from({length: startMinute}, (_, i) => i)
+                            }
+                            return []
+                          }
+                        }
+                      }
+                      
+                      return {}
+                    }}
+                  />
+                </Space>
+              </Form.Item>
+            </Col>
 
-          <Col xs={24}>
-            <Button
-              type="primary"
-              onClick={loadDeviceHistory}
-              disabled={!selectedDevice || loading}
-              loading={loading}
-            >
-              Загрузить историю
-            </Button>
-          </Col>
-        </Row>
+            <Col xs={24}>
+              <Button
+                type="primary"
+                onClick={loadDeviceHistory}
+                disabled={!selectedDevice || loading}
+                loading={loading}
+              >
+                Загрузить историю
+              </Button>
+            </Col>
+          </Row>
+        </Form>
       </Card>
 
       {selectedDevice && (
