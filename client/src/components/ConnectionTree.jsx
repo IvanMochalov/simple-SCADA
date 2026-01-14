@@ -146,7 +146,7 @@ export default function ConnectionTree() {
   }
 
   return (
-    <div className="connection-tree">
+    <div style={{maxWidth: "1200px", margin: "0 auto", padding: "16px"}}>
       <Space orientation="vertical" style={{width: '100%'}} size="large">
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <Title level={2}>Конфигурация узлов связи</Title>
