@@ -131,6 +131,10 @@ export class ModbusManager {
         parity: node.parity || 'none',
       });
 
+      // Даем время на инициализацию COM порта и очистку буфера
+      // Это критично для стабильной работы RS-485
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Устанавливаем таймаут для всех устройств (берем минимальный)
       // Если устройств нет, используем дефолтный таймаут
       const timeouts = node.devices.map(d => d.responseTimeout || 1000);
@@ -155,12 +159,17 @@ export class ModbusManager {
       }
 
       // Опрашиваем только включенные устройства с тегами
-      // Добавляем небольшую задержку между запусками опроса устройств для стабильности
+      // На RS-485 шине устройства должны опрашиваться последовательно
+      // Добавляем задержку между запусками опроса устройств для избежания конфликтов
       for (let i = 0; i < enabledDevices.length; i++) {
         const device = enabledDevices[i];
-        // Задержка перед запуском опроса каждого устройства (кроме первого)
+        // Задержка перед запуском опроса каждого устройства
+        // Первое устройство тоже получает задержку для стабилизации порта
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } else {
+          // Дополнительная задержка для первого устройства после открытия порта
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
         this.startDevicePolling(device, client);
       }
@@ -234,11 +243,12 @@ export class ModbusManager {
 
     this.pollingIntervals.set(device.id, interval);
 
-    // Делаем первый опрос с небольшой задержкой для стабильности
-    // Это помогает избежать таймаутов при первом подключении
+    // Делаем первый опрос с задержкой для стабильности
+    // Увеличена задержка для избежания таймаутов и CRC ошибок при первом подключении
+    // Это дает время на инициализацию устройства и очистку буфера
     setTimeout(async () => {
       await this.pollDevice(device, client);
-    }, 200);
+    }, 500);
   }
 
   stopDevicePolling(deviceId) {
@@ -273,31 +283,49 @@ export class ModbusManager {
       // Устанавливаем unit ID для устройства перед чтением
       client.setID(device.address);
 
-      // Опрашиваем теги последовательно с небольшой задержкой
+      // Опрашиваем теги последовательно с задержкой
+      // На RS-485 важно давать время между запросами
       for (const tag of deviceWithTags.tags) {
         try {
           let value = null;
 
-          // Небольшая задержка между чтениями регистров
+          // Задержка между чтениями регистров для стабильности RS-485
+          // Увеличена задержка для избежания CRC ошибок
           if (deviceWithTags.tags.indexOf(tag) > 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
 
           switch (tag.registerType) {
             case 'HOLDING_REGISTER':
+              // Для float нужно читать 2 регистра (32 бита)
+              const holdingRegistersToRead = (tag.deviceDataType === 'float' || tag.serverDataType === 'float') ? 2 : 1;
               const holdingResult = await client.readHoldingRegisters(
                 tag.address,
-                1
+                holdingRegistersToRead
               );
-              value = this.convertValue(holdingResult.data[0], tag.deviceDataType, tag.serverDataType);
+              
+              if (holdingRegistersToRead === 2) {
+                // Конвертируем два регистра в float
+                value = this.convertRegistersToFloat(holdingResult.data[0], holdingResult.data[1]);
+              } else {
+                value = this.convertValue(holdingResult.data[0], tag.deviceDataType, tag.serverDataType);
+              }
               break;
 
             case 'INPUT_REGISTER':
+              // Для float нужно читать 2 регистра (32 бита)
+              const inputRegistersToRead = (tag.deviceDataType === 'float' || tag.serverDataType === 'float') ? 2 : 1;
               const inputResult = await client.readInputRegisters(
                 tag.address,
-                1
+                inputRegistersToRead
               );
-              value = this.convertValue(inputResult.data[0], tag.deviceDataType, tag.serverDataType);
+              
+              if (inputRegistersToRead === 2) {
+                // Конвертируем два регистра в float
+                value = this.convertRegistersToFloat(inputResult.data[0], inputResult.data[1]);
+              } else {
+                value = this.convertValue(inputResult.data[0], tag.deviceDataType, tag.serverDataType);
+              }
               break;
 
             case 'COIL':
@@ -396,6 +424,37 @@ export class ModbusManager {
 
     // Для других типов пока возвращаем как есть
     return rawValue;
+  }
+
+  /**
+   * Конвертирует два Modbus регистра (16 бит каждый) в IEEE 754 float (32 бита)
+   * Используется порядок байтов: старший регистр (high word) -> младший регистр (low word)
+   * Это стандартный порядок для большинства Modbus устройств (big-endian)
+   * 
+   * @param {number} highWord - Старший регистр (первые 16 бит)
+   * @param {number} lowWord - Младший регистр (последние 16 бит)
+   * @returns {number} Float значение
+   */
+  convertRegistersToFloat(highWord, lowWord) {
+    // Преобразуем два 16-битных регистра в 32-битное целое число
+    // highWord содержит старшие 16 бит, lowWord - младшие 16 бит
+    // Порядок байтов: Big-endian (ABCD)
+    // A = старший байт highWord, B = младший байт highWord
+    // C = старший байт lowWord, D = младший байт lowWord
+    
+    // Создаем буфер для 32-битного float
+    const buffer = Buffer.allocUnsafe(4);
+    
+    // Записываем байты в правильном порядке (big-endian)
+    // Старший байт highWord -> buffer[0]
+    // Младший байт highWord -> buffer[1]
+    // Старший байт lowWord -> buffer[2]
+    // Младший байт lowWord -> buffer[3]
+    buffer.writeUInt16BE(highWord, 0);
+    buffer.writeUInt16BE(lowWord, 2);
+    
+    // Читаем как IEEE 754 float (big-endian)
+    return buffer.readFloatBE(0);
   }
 
 
@@ -536,7 +595,9 @@ export class ModbusManager {
                 address: tag.address,
                 registerType: tag.registerType,
                 accessType: tag.accessType,
-                enabled: tag.enabled
+                enabled: tag.enabled,
+                deviceDataType: tag.deviceDataType,
+                serverDataType: tag.serverDataType
               }))
             }))
           }))
@@ -623,8 +684,9 @@ export class ModbusManager {
         // Обновляем устройство в connection.devices
         connection.devices.set(deviceId, updatedDevice);
         
-        // Небольшая задержка перед запуском опроса для стабильности
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Задержка перед запуском опроса для стабильности RS-485
+        // Даем время на очистку буфера и инициализацию устройства
+        await new Promise(resolve => setTimeout(resolve, 300));
         
         // Запускаем опрос устройства
         this.startDevicePolling(updatedDevice, connection.client);

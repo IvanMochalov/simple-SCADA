@@ -67,6 +67,27 @@ export default function RealTimeView() {
     return tagValues[deviceId][tagId]
   }
 
+  // Форматирует значение тега для отображения
+  const formatTagValue = (value, tag) => {
+    if (value === null || value === undefined) {
+      return '—'
+    }
+
+    // Проверяем, является ли значение float (число с десятичной частью)
+    // или тип данных тега указывает на float
+    const isFloat = tag?.serverDataType === 'float' || 
+                    tag?.deviceDataType === 'float' ||
+                    (typeof value === 'number' && value % 1 !== 0)
+
+    if (isFloat) {
+      // Ограничиваем до 3 знаков после запятой для float
+      return Number(value).toFixed(3)
+    }
+
+    // Для целых чисел возвращаем как есть
+    return value
+  }
+
   // Обновляем статус modbusManager при изменении state
   React.useEffect(() => {
     if (state && state.modbusManagerStatus) {
@@ -169,7 +190,7 @@ export default function RealTimeView() {
     return tagValue ? (
       <>
         <div className="tag-value">
-          {tagValue.value !== null ? tagValue.value : '—'}
+          {formatTagValue(tagValue.value, tag)}
         </div>
         {tagValue.error && (
           <Text type="danger" style={{fontSize: '12px'}}>
