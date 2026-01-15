@@ -118,6 +118,7 @@ export class ModbusManager {
       this.connections.set(node.id, connection);
 
       console.log(`Connection started for node ${node.name}`);
+      this.broadcastMessage({title: "Modbus manager запущен"}, 'success');
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
 
@@ -158,6 +159,7 @@ export class ModbusManager {
       this.connections.delete(nodeId);
 
       console.log(`Connection stopped for node ${nodeId}`);
+      this.broadcastMessage({title: "Modbus manager остановлен"}, 'warning');
     } catch (error) {
       console.error(`Error stopping connection ${nodeId}:`, error);
     } finally {
