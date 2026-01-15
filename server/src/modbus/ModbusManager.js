@@ -33,7 +33,11 @@ export class ModbusManager {
     });
 
     for (const node of nodes) {
-      await this.startConnection(node);
+      const res = await this.startConnection(node);
+
+      if (!res.success) {
+        return res
+      }
     }
 
     // Запускаем сбор исторических данных каждую минуту
@@ -71,7 +75,6 @@ export class ModbusManager {
       }
     }
     this.connections.clear();
-    this.broadcastMessage({title: "Modbus manager остановлен"}, 'warning');
 
     // Останавливаем сбор истории
     if (this.historyInterval) {
@@ -121,19 +124,17 @@ export class ModbusManager {
       console.log(`Connection started for node ${node.name}`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
-      let textDescription = "";
+      let errorMessage = "";
       if (error.message && error.message.includes('Access denied')) {
-        textDescription = `Доступ к COM порту ${node.name}: ${node.comPort} запрещен. Убедитесь, что порт не занят другим приложением.`;
+        errorMessage = `Доступ к COM порту ${node.name}: ${node.comPort} запрещен. Убедитесь, что порт не занят другим приложением.`;
       } else if (error.message && error.message.includes('cannot open')) {
-        textDescription = `Не удалось открыть COM порт ${node.name}: ${node.comPort}. Проверьте, что порт существует и доступен.`;
+        errorMessage = `Не удалось открыть COM порт ${node.name}: ${node.comPort}. Проверьте, что порт существует и доступен.`;
       } else {
-        textDescription = `Проверьте подключение ${node.name}: ${node.comPort}.`;
+        errorMessage = `Проверьте подключение ${node.name}: ${node.comPort}.`;
       }
 
       await this.stop();
-      throw new Error(error.message, {details: textDescription});
-      // const message = {title: error.message, description: textDescription};
-      // this.broadcastMessage(message, 'error');
+      return {success: false, data: errorMessage};
     } finally {
       this.broadcastStateUpdate();
     }

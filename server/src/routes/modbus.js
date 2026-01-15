@@ -9,18 +9,21 @@ export default function modbusRoutes(modbusManager) {
       const status = modbusManager.getStatus();
       res.json(status);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
   // Запустить Modbus Manager
   router.post('/start', async (req, res) => {
     try {
-      await modbusManager.start();
+      const res = await modbusManager.start();
       modbusManager.broadcastStateUpdate();
-      res.json({ success: true, status: modbusManager.getStatus() });
+      if (!res.success) {
+        res.json(res);
+      }
+      res.json({success: true, status: modbusManager.getStatus()});
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -29,9 +32,9 @@ export default function modbusRoutes(modbusManager) {
     try {
       await modbusManager.stop();
       modbusManager.broadcastStateUpdate();
-      res.json({ success: true, status: modbusManager.getStatus() });
+      res.json({success: true, status: modbusManager.getStatus()});
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
