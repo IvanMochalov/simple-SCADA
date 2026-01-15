@@ -16,11 +16,8 @@ export default function modbusRoutes(modbusManager) {
   // Запустить Modbus Manager
   router.post('/start', async (req, res) => {
     try {
-      const startRes = await modbusManager.start();
+      await modbusManager.start();
       modbusManager.broadcastStateUpdate();
-      if (!startRes.success) {
-        res.json(startRes);
-      }
       res.json({success: true, status: modbusManager.getStatus()});
     } catch (error) {
       res.status(500).json({error: error.message});

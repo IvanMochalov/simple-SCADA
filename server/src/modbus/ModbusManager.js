@@ -33,11 +33,7 @@ export class ModbusManager {
     });
 
     for (const node of nodes) {
-      const res = await this.startConnection(node);
-
-      if (!res.success) {
-        return res
-      }
+      await this.startConnection(node);
     }
 
     // Запускаем сбор исторических данных каждую минуту
@@ -134,7 +130,7 @@ export class ModbusManager {
       }
 
       await this.stop();
-      return {success: false, data: errorMessage};
+      throw new Error(errorMessage)
     } finally {
       this.broadcastStateUpdate();
     }
