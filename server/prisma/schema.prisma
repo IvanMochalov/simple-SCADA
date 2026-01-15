@@ -11,18 +11,20 @@ datasource db {
 }
 
 model ConnectionNode {
-  id        String   @id @default(uuid())
-  name      String
-  type      String // "COM" | "TCP_IP"
-  comPort   String // "COM3"
-  baudRate  Int      @default(9600)
-  dataBits  Int      @default(8)
-  stopBits  Int      @default(1)
-  parity    String   @default("none")
-  enabled   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  devices   Device[]
+  id               String   @id @default(uuid())
+  name             String
+  type             String   // "COM" | "TCP_IP"
+  comPort          String   // "COM3"
+  baudRate         Int      @default(9600)
+  dataBits         Int      @default(8)
+  stopBits         Int      @default(1)
+  parity           String   @default("none")
+  enabled          Boolean  @default(true)
+  connectionStatus String   @default("disconnected") // "connected", "disconnected", "error"
+  lastError        String?  // Сообщение об ошибке подключения
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  devices          Device[]
 }
 
 model Device {

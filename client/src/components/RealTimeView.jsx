@@ -172,10 +172,30 @@ export default function RealTimeView() {
     )
   }
 
-  const renderTagValue = (device, tag) => {
+  const renderTagValue = (device, tag, node) => {
     if (!isModbusRunning) {
       return (
         <Text type="secondary">Запустите Modbus Server</Text>
+      )
+    }
+
+    // Проверяем статус подключения узла
+    if (node.connectionStatus === 'error') {
+      return (
+        <Text type="danger">
+          Узел не подключен
+          {node.lastError && (
+            <div style={{fontSize: '10px', marginTop: '4px'}}>
+              {node.lastError}
+            </div>
+          )}
+        </Text>
+      )
+    }
+
+    if (node.connectionStatus === 'disconnected') {
+      return (
+        <Text type="secondary">Узел отключен</Text>
       )
     }
 
@@ -188,6 +208,13 @@ export default function RealTimeView() {
     if (!tag.enabled) {
       return (
         <Text type="secondary">Тег не включен в работу</Text>
+      )
+    }
+
+    // Для узлов с ошибкой не показываем устаревшие данные
+    if (node.connectionStatus !== 'connected') {
+      return (
+        <Text type="secondary">Нет данных</Text>
       )
     }
 
@@ -212,7 +239,7 @@ export default function RealTimeView() {
     )
   }
 
-  const renderTagContent = (device, tag) => {
+  const renderTagContent = (device, tag, node) => {
 
     return (
       <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
@@ -240,7 +267,7 @@ export default function RealTimeView() {
                 Адрес: {tag.address}
               </Text>
             </div>
-            {renderTagValue(device, tag)}
+            {renderTagValue(device, tag, node)}
           </Space>
         </Card>
       </Col>
@@ -283,6 +310,17 @@ export default function RealTimeView() {
                       >
                         {node.enabled ? 'Включен' : 'Не включен'}
                       </Tag>
+                      {node.connectionStatus && (
+                        <Tag
+                          color={
+                            node.connectionStatus === 'connected' ? 'success' :
+                            node.connectionStatus === 'error' ? 'error' : 'default'
+                          }
+                        >
+                          {node.connectionStatus === 'connected' ? 'Подключен' :
+                           node.connectionStatus === 'error' ? 'Ошибка подключения' : 'Отключен'}
+                        </Tag>
+                      )}
                     </Space>
                   ),
                   children: node.devices.length === 0 ? (
@@ -327,7 +365,7 @@ export default function RealTimeView() {
                                 <Empty description="Нет тегов" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
                               ) : (
                                 <Row gutter={[16, 16]}>
-                                  {device.tags.map(tag => renderTagContent(device, tag))}
+                                  {device.tags.map(tag => renderTagContent(device, tag, node))}
                                 </Row>
                               )
                             }]}

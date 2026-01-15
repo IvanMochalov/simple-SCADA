@@ -75,12 +75,16 @@ export class ModbusManager {
     }
     this.pollingIntervals.clear();
 
-    // Закрываем все соединения
-    for (const [nodeId, conn] of this.connections.entries()) {
+    // Закрываем все соединения и обновляем статусы
+    const nodeIds = Array.from(this.connections.keys());
+    for (const nodeId of nodeIds) {
+      const conn = this.connections.get(nodeId);
       try {
-        if (conn.client && conn.client.isOpen) {
+        if (conn && conn.client && conn.client.isOpen) {
           await conn.client.close();
         }
+        // Обновляем статус узла на disconnected
+        await this.updateNodeConnectionStatus(nodeId, 'disconnected', null);
       } catch (error) {
         console.error(`Error closing connection ${nodeId}:`, error);
       }
@@ -176,6 +180,9 @@ export class ModbusManager {
 
       this.connections.set(node.id, connection);
 
+      // Обновляем статус подключения узла
+      await this.updateNodeConnectionStatus(node.id, 'connected', null);
+
       console.log(`Connection started for node ${node.name} with ${enabledDevices.length} enabled devices`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
@@ -187,6 +194,9 @@ export class ModbusManager {
       } else {
         errorMessage = `Проверьте подключение ${node.name}: ${node.comPort}.`;
       }
+
+      // Обновляем статус подключения узла с ошибкой
+      await this.updateNodeConnectionStatus(node.id, 'error', errorMessage);
 
       // Не останавливаем весь Modbus Manager при ошибке одного узла
       // Просто пропускаем этот узел и продолжаем работу
@@ -224,6 +234,9 @@ export class ModbusManager {
       }
 
       this.connections.delete(nodeId);
+
+      // Обновляем статус подключения узла
+      await this.updateNodeConnectionStatus(nodeId, 'disconnected', null);
 
       console.log(`Connection stopped for node ${nodeId}`);
     } catch (error) {
@@ -426,6 +439,20 @@ export class ModbusManager {
     return rawValue;
   }
 
+  async updateNodeConnectionStatus(nodeId, status, errorMessage) {
+    try {
+      await this.prisma.connectionNode.update({
+        where: {id: nodeId},
+        data: {
+          connectionStatus: status,
+          lastError: errorMessage
+        }
+      });
+    } catch (error) {
+      console.error(`Error updating node connection status ${nodeId}:`, error);
+    }
+  }
+
   /**
    * Конвертирует два Modbus регистра (16 бит каждый) в IEEE 754 float (32 бита)
    * Используется порядок байтов: старший регистр (high word) -> младший регистр (low word)
@@ -583,6 +610,8 @@ export class ModbusManager {
             type: node.type,
             comPort: node.comPort,
             enabled: node.enabled,
+            connectionStatus: node.connectionStatus || 'disconnected',
+            lastError: node.lastError,
             devices: node.devices.map(device => ({
               id: device.id,
               name: device.name,
