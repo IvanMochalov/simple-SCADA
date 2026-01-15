@@ -34,6 +34,7 @@ export class ModbusManager {
 
     for (const node of nodes) {
       await this.startConnection(node);
+      this.broadcastMessage({title: "Modbus manager запущен"}, 'success');
     }
 
     // Запускаем сбор исторических данных каждую минуту
@@ -119,7 +120,6 @@ export class ModbusManager {
       this.connections.set(node.id, connection);
 
       console.log(`Connection started for node ${node.name}`);
-      this.broadcastMessage({title: "Modbus manager запущен"}, 'success');
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
 
