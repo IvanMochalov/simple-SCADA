@@ -134,13 +134,82 @@ export default function RealTimeView() {
             <Title level={2}>Значения тегов в реальном времени</Title>
           </div>
           <Alert
-            message="Нет включенных узлов связи"
+            title="Нет включенных узлов связи"
             description="Для работы Modbus Server необходимо включить в работу хотя бы один узел связи в разделе 'Конфигурация'."
             type="warning"
             showIcon
           />
         </Space>
       </div>
+    )
+  }
+
+  const renderTagValue = (device, tag) => {
+    if (!isModbusRunning) {
+      return (
+        <Text type="secondary">Запустите Modbus Server</Text>
+      )
+    }
+
+    if (!tag.enabled) {
+      return (
+        <Text type="secondary">Тег не включен в работу</Text>
+      )
+    }
+
+    const tagValue = getTagValue(device.id, tag.id)
+
+    return tagValue ? (
+      <>
+        <div className="tag-value">
+          {tagValue.value !== null ? tagValue.value : '—'}
+        </div>
+        {tagValue.error && (
+          <Text type="danger" style={{fontSize: '12px'}}>
+            {tagValue.error}
+          </Text>
+        )}
+        <Text type="secondary" style={{fontSize: '11px'}}>
+          {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
+        </Text>
+      </>
+    ) : (
+      <Text type="secondary">Нет данных</Text>
+    )
+  }
+
+  const renderTagContent = (device, tag) => {
+
+    return (
+      <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
+        <Card size="small" className="tag-card"
+              styles={{body: {height: "100%"}, root: {height: "100%"}}}>
+          <Space orientation="vertical" style={{
+            width: '100%',
+            height: '100%',
+            textAlign: 'center',
+            justifyContent: "space-between"
+          }}>
+            <div style={{textAlign: "start"}}>
+              <Space align={"start"} style={{justifyContent: "space-between", width: "100%"}}>
+                <Text strong>{tag.name}</Text>
+                <Tag
+                  color={tag.enabled ? 'success' : 'default'}
+                  icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                  style={{fontSize: '10px'}}
+                >
+                  {tag.enabled ? 'Вкл' : 'Выкл'}
+                </Tag>
+              </Space>
+              <br/>
+              <Text type="secondary" style={{fontSize: '12px'}}>
+                Адрес: {tag.address}
+              </Text>
+            </div>
+            {renderTagValue(device, tag)}
+          </Space>
+        </Card>
+      </Col>
     )
   }
 
@@ -224,58 +293,7 @@ export default function RealTimeView() {
                                 <Empty description="Нет тегов" image={Empty.PRESENTED_IMAGE_SIMPLE}/>
                               ) : (
                                 <Row gutter={[16, 16]}>
-                                  {device.tags.map(tag => {
-                                    const tagValue = getTagValue(device.id, tag.id)
-                                    return (
-                                      <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
-                                        <Card size="small" className="tag-card"
-                                              styles={{body: {height: "100%"}, root: {height: "100%"}}}>
-                                          <Space orientation="vertical" style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            textAlign: 'center',
-                                            justifyContent: "space-between"
-                                          }}>
-                                            <div>
-                                              <Space>
-                                                <Text strong>{tag.name}</Text>
-                                                <Tag
-                                                  color={tag.enabled ? 'success' : 'default'}
-                                                  icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
-                                                  style={{fontSize: '10px'}}
-                                                >
-                                                  {tag.enabled ? 'Вкл' : 'Выкл'}
-                                                </Tag>
-                                              </Space>
-                                              <br/>
-                                              <Text type="secondary" style={{fontSize: '12px'}}>
-                                                Адрес: {tag.address}
-                                              </Text>
-                                            </div>
-                                            {!isModbusRunning ? (
-                                              <Text type="secondary">Запустите Modbus Server</Text>
-                                            ) : tagValue ? (
-                                              <>
-                                                <div className="tag-value">
-                                                  {tagValue.value !== null ? tagValue.value : '—'}
-                                                </div>
-                                                {tagValue.error && (
-                                                  <Text type="danger" style={{fontSize: '12px'}}>
-                                                    {tagValue.error}
-                                                  </Text>
-                                                )}
-                                                <Text type="secondary" style={{fontSize: '11px'}}>
-                                                  {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
-                                                </Text>
-                                              </>
-                                            ) : (
-                                              <Text type="secondary">Нет данных</Text>
-                                            )}
-                                          </Space>
-                                        </Card>
-                                      </Col>
-                                    )
-                                  })}
+                                  {device.tags.map(tag => renderTagContent(device, tag))}
                                 </Row>
                               )
                             }]}

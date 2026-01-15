@@ -6,7 +6,6 @@ import {useNotification} from "../context/NotificationContext.jsx";
 export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   const notification = useNotification();
   const [form] = Form.useForm()
-  const [nodes, setNodes] = useState([])
   const [formData, setFormData] = useState({
     connectionNodeId: nodeId || '',
     name: '',
@@ -18,7 +17,6 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    loadNodes()
     if (deviceId) {
       loadDevice()
     }
@@ -27,19 +25,6 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
   useEffect(() => {
     form.setFieldsValue(formData)
   }, [formData, form])
-
-  const loadNodes = async () => {
-    try {
-      const response = await api.getAllNodes()
-      setNodes(response.data)
-      if (!nodeId && response.data.length > 0) {
-        setFormData(prev => ({...prev, connectionNodeId: response.data[0].id}))
-      }
-    } catch (error) {
-      console.error('Error loading nodes:', error)
-      notification.error('Ошибка загрузки узлов', error.message || "")
-    }
-  }
 
   const loadDevice = async () => {
     try {
@@ -84,6 +69,7 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
       ...changedValues
     }))
   }
+  console.log("nodeId: -->", nodeId);
 
   return (
     <Modal
@@ -103,20 +89,6 @@ export default function DeviceForm({deviceId, nodeId, onClose, onSave}) {
         initialValues={formData}
         disabled={loading}
       >
-        <Form.Item
-          label="Узел связи"
-          name="connectionNodeId"
-          rules={[{required: true, message: 'Выберите узел связи'}]}
-        >
-          <Select disabled={!nodeId}>
-            <Select.Option value="">Выберите узел связи</Select.Option>
-            {nodes.map(node => (
-              <Select.Option key={node.id} value={node.id}>
-                {node.name} ({node.comPort})
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
 
         <Form.Item
           label="Название"

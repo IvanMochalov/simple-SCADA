@@ -11,11 +11,11 @@ export default function deviceRoutes(prisma, modbusManager) {
           connectionNode: true,
           tags: true
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: {createdAt: 'desc'}
       });
       res.json(devices);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -23,26 +23,26 @@ export default function deviceRoutes(prisma, modbusManager) {
   router.get('/:id', async (req, res) => {
     try {
       const device = await prisma.device.findUnique({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         include: {
           connectionNode: true,
           tags: true
         }
       });
       if (!device) {
-        return res.status(404).json({ error: 'Device not found' });
+        return res.status(404).json({error: 'Device not found'});
       }
       res.json(device);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
   // Создать устройство
   router.post('/', async (req, res) => {
     try {
-      const { connectionNodeId, name, address, responseTimeout, pollInterval, enabled } = req.body;
-      
+      const {connectionNodeId, name, address, responseTimeout, pollInterval, enabled} = req.body;
+
       const device = await prisma.device.create({
         data: {
           connectionNodeId,
@@ -63,26 +63,26 @@ export default function deviceRoutes(prisma, modbusManager) {
 
       res.json(device);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
   // Обновить устройство
   router.put('/:id', async (req, res) => {
     try {
-      const { name, address, responseTimeout, pollInterval, enabled } = req.body;
-      
+      const {name, address, responseTimeout, pollInterval, enabled} = req.body;
+
       const device = await prisma.device.findUnique({
-        where: { id: req.params.id },
-        include: { connectionNode: true }
+        where: {id: req.params.id},
+        include: {connectionNode: true}
       });
 
       if (!device) {
-        return res.status(404).json({ error: 'Device not found' });
+        return res.status(404).json({error: 'Device not found'});
       }
 
       const updatedDevice = await prisma.device.update({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         data: {
           name,
           address,
@@ -101,7 +101,7 @@ export default function deviceRoutes(prisma, modbusManager) {
 
       res.json(updatedDevice);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -109,26 +109,28 @@ export default function deviceRoutes(prisma, modbusManager) {
   router.delete('/:id', async (req, res) => {
     try {
       const device = await prisma.device.findUnique({
-        where: { id: req.params.id },
-        include: { connectionNode: true }
+        where: {id: req.params.id},
+        include: {connectionNode: true}
       });
 
       if (!device) {
-        return res.status(404).json({ error: 'Device not found' });
+        return res.status(404).json({error: 'Device not found'});
       }
 
       const connectionNodeId = device.connectionNodeId;
 
       await prisma.device.delete({
-        where: { id: req.params.id }
+        where: {id: req.params.id}
       });
 
-      // Перезапускаем соединение узла
-      await modbusManager.reloadConnection(connectionNodeId);
+      if (modbusManager.isRunning) {
+        // Перезапускаем соединение узла
+        await modbusManager.reloadConnection(connectionNodeId);
+      }
 
-      res.json({ success: true });
+      res.json({success: true});
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -139,7 +141,7 @@ export default function deviceRoutes(prisma, modbusManager) {
       res.json(result);
     } catch (error) {
       console.error('Error reconnecting device:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 

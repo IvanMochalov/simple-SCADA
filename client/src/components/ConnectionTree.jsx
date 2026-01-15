@@ -275,6 +275,7 @@ export default function ConnectionTree() {
                                           icon={<EditOutlined/>}
                                           onClick={() => {
                                             setSelectedDeviceId(device.id)
+                                            setSelectedNodeId(node.id)
                                             setShowDeviceForm(true)
                                           }}
                                         />
@@ -331,6 +332,7 @@ export default function ConnectionTree() {
                                                 onClick={() => {
                                                   setSelectedTagId(tag.id)
                                                   setSelectedDeviceId(device.id)
+                                                  setSelectedNodeId(node.id)
                                                   setShowTagForm(true)
                                                 }}
                                               />
