@@ -39,6 +39,12 @@ export const api = {
   // POST /api/devices/:id/reconnect - Переподключить устройство
   reconnectDeviceById: async (id) => await axios.post(`${API_BASE}/devices/${id}/reconnect`),
 
+  // GET /api/history/system - Получить историю для всей системы
+  getHistorySystem: async (requestData) => await axios.get(`${API_BASE}/history/system`, requestData),
+
+  // GET /api/history/node/:nodeId - Получить историю для узла связи
+  getHistoryNodeById: async (id, requestData) => await axios.get(`${API_BASE}/history/node/${id}`, requestData),
+
   // GET /api/history/device/:deviceId - Получить историю для устройства
   getHistoryDeviceById: async (id, requestData) => await axios.get(`${API_BASE}/history/device/${id}`, requestData),
 

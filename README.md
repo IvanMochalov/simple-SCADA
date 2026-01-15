@@ -145,9 +145,10 @@ npm run dev
 - `PUT /api/tags/:id` - Обновить тег
 - `DELETE /api/tags/:id` - Удалить тег
 
-- `GET /api/history` - Получить исторические данные
-- `GET /api/history/tag/:tagId` - Получить историю для тега
-- `GET /api/history/device/:deviceId` - Получить историю для устройства
+- `GET /api/history/system` — история всей системы
+- `GET /api/history/node/:nodeId` — история узла связи
+- `GET /api/history/device/:deviceId` — история устройства
+- `GET /api/history/tag/:tagId` — история тега
 
 ### WebSocket
 
