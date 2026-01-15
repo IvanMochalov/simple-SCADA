@@ -1,6 +1,7 @@
 import React, {createContext, useContext, useEffect, useState, useRef} from 'react'
 import axios from 'axios'
 import {API_BASE, HOST} from "../services/api.js";
+import {useNotification} from './NotificationContext.jsx';
 
 const WebSocketContext = createContext(null)
 
@@ -11,6 +12,7 @@ export function WebSocketProvider({children}) {
   const [tagValues, setTagValues] = useState({}) // { deviceId: { tagId: { value, timestamp } } }
   const wsRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
+  const notification = useNotification()
 
   useEffect(() => {
     connectWebSocket()
@@ -56,6 +58,11 @@ export function WebSocketProvider({children}) {
               Object.assign(newValues[message.deviceId], message.data)
               return newValues
             })
+          } else if (message.type === 'message') {
+            // Обрабатываем сообщения от сервера и показываем уведомление
+            const { text, messageType } = message.data
+            const notificationMethod = notification[messageType] || notification.info
+            notificationMethod(text.title, text.description)
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error)

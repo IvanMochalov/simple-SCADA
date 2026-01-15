@@ -11,11 +11,11 @@ const router = createBrowserRouter([
   {
     path: '/',
     element: (
-      <WebSocketProvider>
-        <NotificationProvider>
+      <NotificationProvider>
+        <WebSocketProvider>
           <Layout/>
-        </NotificationProvider>
-      </WebSocketProvider>
+        </WebSocketProvider>
+      </NotificationProvider>
     ),
     children: [
       {

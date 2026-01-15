@@ -77,8 +77,6 @@ export class ModbusManager {
       clearInterval(this.historyInterval);
       this.historyInterval = null;
     }
-
-    console.log('Modbus Manager stopped');
   }
 
   async startConnection(node) {
@@ -124,13 +122,10 @@ export class ModbusManager {
       console.error(`Error starting connection for node ${node.name}:`, error);
 
       // Обрабатываем специфичные ошибки
-      let errorMessage = error.message;
-      if (error.message && error.message.includes('Access denied')) {
-        errorMessage = 'Доступ к COM порту запрещен. Убедитесь, что порт не занят другим приложением и запустите с правами администратора.';
-      } else if (error.message && error.message.includes('cannot open')) {
-        errorMessage = 'Не удалось открыть COM порт. Проверьте, что порт существует и доступен.';
-      }
+      const message = {title: error.message, description: `Проверьте подключение ${node.name}}`};
 
+      // Отправляем сообщение об ошибке на клиент
+      this.broadcastMessage(message, 'error');
     } finally {
       this.broadcastStateUpdate();
     }
@@ -401,6 +396,23 @@ export class ModbusManager {
       type: 'tagValues',
       deviceId,
       data: tagValues,
+      timestamp: new Date().toISOString()
+    });
+
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === 1) {
+        client.send(message);
+      }
+    });
+  }
+
+  broadcastMessage(messageDataText, messageType = 'info') {
+    const message = JSON.stringify({
+      type: 'message',
+      data: {
+        text: messageDataText,
+        messageType: messageType
+      },
       timestamp: new Date().toISOString()
     });
 
