@@ -73,18 +73,14 @@ export default function RealTimeView() {
       return '—'
     }
 
-    // Проверяем, является ли значение float (число с десятичной частью)
-    // или тип данных тега указывает на float
-    const isFloat = tag?.serverDataType === 'float' ||
-      tag?.deviceDataType === 'float' ||
-      (typeof value === 'number' && value % 1 !== 0)
-
-    if (isFloat) {
-      // Ограничиваем до 3 знаков после запятой для float
-      return Number(value).toFixed(3)
+    // Если значение - число, форматируем его
+    if (typeof value === 'number') {
+      // Если число целое - показываем без десятичной части
+      // Если дробное - ограничиваем до 2 знаков после запятой
+      return value % 1 === 0 ? value.toString() : Number(value).toFixed(2)
     }
 
-    // Для целых чисел возвращаем как есть
+    // Для нечисловых значений возвращаем как есть
     return value
   }
 
