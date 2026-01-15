@@ -83,7 +83,12 @@ export default function RealTimeView() {
         await api.stopModbus()
         notification.warning('Modbus Manager остановлен');
       } else {
-        await api.startModbus()
+        const {data} = await api.startModbus()
+        if (data.success) {
+          notification.success('Modbus Manager запущен');
+        } else {
+          notification.error(data.data.title, data.data.description)
+        }
       }
     } catch (error) {
       console.error('Error toggling Modbus Manager:', error)
