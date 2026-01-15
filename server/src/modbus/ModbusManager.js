@@ -20,16 +20,6 @@ export class ModbusManager {
     // Загружаем все активные узлы связи
     const nodes = await this.prisma.connectionNode.findMany({
       where: {enabled: true},
-      include: {
-        devices: {
-          where: {enabled: true},
-          include: {
-            tags: {
-              where: {enabled: true}
-            }
-          }
-        }
-      }
     });
 
     for (const node of nodes) {
@@ -497,16 +487,6 @@ export class ModbusManager {
 
     const node = await this.prisma.connectionNode.findUnique({
       where: {id: nodeId},
-      include: {
-        devices: {
-          where: {enabled: true},
-          include: {
-            tags: {
-              where: {enabled: true}
-            }
-          }
-        }
-      }
     });
 
     if (node && node.enabled) {
