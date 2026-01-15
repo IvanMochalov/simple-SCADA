@@ -17,18 +17,43 @@ export class ModbusManager {
 
     console.log('Starting Modbus Manager...');
 
-    // Загружаем все активные узлы связи
+    // Загружаем все активные узлы связи с устройствами и тегами
     const nodes = await this.prisma.connectionNode.findMany({
       where: {enabled: true},
+      include: {
+        devices: {
+          where: {enabled: true},
+          include: {
+            tags: {
+              where: {enabled: true}
+            }
+          }
+        }
+      }
     });
 
+    // Запускаем соединения для каждого узла
+    // Если один узел не запустился, продолжаем работу с остальными
     for (const node of nodes) {
-      await this.startConnection(node);
+      try {
+        await this.startConnection(node);
+      } catch (error) {
+        console.error(`Failed to start connection for node ${node.name}:`, error);
+        // Продолжаем работу с другими узлами
+      }
     }
 
     // Запускаем сбор исторических данных каждую минуту
     this.historyInterval = setInterval(() => {
-      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node => node.enabled && node.devices.some(device => device.enabled && device.tags.some(tag => tag.enabled)));
+      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node => 
+        node.enabled && 
+        node.devices && 
+        node.devices.some(device => 
+          device.enabled && 
+          device.tags && 
+          device.tags.some(tag => tag.enabled)
+        )
+      );
 
       if (isSomeNodeHasDeviceWithTagEnabled) {
         this.collectHistoryData();
@@ -73,6 +98,28 @@ export class ModbusManager {
     try {
       console.log(`Starting connection for node ${node.name} (${node.comPort})`);
 
+      // Если устройства не загружены, загружаем их
+      if (!node.devices || node.devices.length === 0) {
+        const nodeWithDevices = await this.prisma.connectionNode.findUnique({
+          where: {id: node.id},
+          include: {
+            devices: {
+              where: {enabled: true},
+              include: {
+                tags: {
+                  where: {enabled: true}
+                }
+              }
+            }
+          }
+        });
+        if (nodeWithDevices) {
+          node.devices = nodeWithDevices.devices || [];
+        } else {
+          node.devices = [];
+        }
+      }
+
       const client = new ModbusRTU();
 
       // Используем connectRTUBuffered для подключения к COM порту
@@ -85,7 +132,9 @@ export class ModbusManager {
       });
 
       // Устанавливаем таймаут для всех устройств (берем минимальный)
-      const minTimeout = Math.min(...node.devices.map(d => d.responseTimeout || 1000));
+      // Если устройств нет, используем дефолтный таймаут
+      const timeouts = node.devices.map(d => d.responseTimeout || 1000);
+      const minTimeout = timeouts.length > 0 ? Math.min(...timeouts) : 1000;
       client.setTimeout(minTimeout);
 
       const connection = {
@@ -93,21 +142,32 @@ export class ModbusManager {
         devices: new Map()
       };
 
-      // Запускаем опрос только для включенных устройств
-      const enabledDevices = node.devices.filter(device => device.enabled);
+      // Запускаем опрос только для включенных устройств с тегами
+      const enabledDevices = node.devices.filter(device => 
+        device.enabled && 
+        device.tags && 
+        device.tags.length > 0
+      );
 
+      // Сохраняем все устройства в connection
       for (const device of node.devices) {
         connection.devices.set(device.id, device);
       }
 
-      // Опрашиваем только включенные устройства
-      for (const device of enabledDevices) {
+      // Опрашиваем только включенные устройства с тегами
+      // Добавляем небольшую задержку между запусками опроса устройств для стабильности
+      for (let i = 0; i < enabledDevices.length; i++) {
+        const device = enabledDevices[i];
+        // Задержка перед запуском опроса каждого устройства (кроме первого)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
         this.startDevicePolling(device, client);
       }
 
       this.connections.set(node.id, connection);
 
-      console.log(`Connection started for node ${node.name}`);
+      console.log(`Connection started for node ${node.name} with ${enabledDevices.length} enabled devices`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
       let errorMessage = "";
@@ -119,8 +179,12 @@ export class ModbusManager {
         errorMessage = `Проверьте подключение ${node.name}: ${node.comPort}.`;
       }
 
-      await this.stop();
-      throw new Error(errorMessage)
+      // Не останавливаем весь Modbus Manager при ошибке одного узла
+      // Просто пропускаем этот узел и продолжаем работу
+      this.broadcastMessage({
+        title: `Ошибка подключения к узлу ${node.name}: ${node.comPort}.`,
+        description: errorMessage
+      }, "error");
     } finally {
       this.broadcastStateUpdate();
     }
@@ -153,7 +217,6 @@ export class ModbusManager {
       this.connections.delete(nodeId);
 
       console.log(`Connection stopped for node ${nodeId}`);
-      this.broadcastMessage({title: "Modbus manager остановлен"}, 'warning');
     } catch (error) {
       console.error(`Error stopping connection ${nodeId}:`, error);
     } finally {
@@ -171,8 +234,11 @@ export class ModbusManager {
 
     this.pollingIntervals.set(device.id, interval);
 
-    // Сразу делаем первый опрос
-    this.pollDevice(device, client);
+    // Делаем первый опрос с небольшой задержкой для стабильности
+    // Это помогает избежать таймаутов при первом подключении
+    setTimeout(async () => {
+      await this.pollDevice(device, client);
+    }, 200);
   }
 
   stopDevicePolling(deviceId) {
@@ -402,11 +468,16 @@ export class ModbusManager {
     });
   }
 
-  broadcastMessage(messageDataText, messageType = 'info') {
+  broadcastMessage(messageData, messageType = 'info') {
+    // Поддерживаем как строку, так и объект с title и description
+    const text = typeof messageData === 'string' 
+      ? { title: messageData, description: '' }
+      : messageData;
+
     const message = JSON.stringify({
       type: 'message',
       data: {
-        text: messageDataText,
+        text: text,
         messageType: messageType
       },
       timestamp: new Date().toISOString()
@@ -487,9 +558,19 @@ export class ModbusManager {
 
     const node = await this.prisma.connectionNode.findUnique({
       where: {id: nodeId},
+      include: {
+        devices: {
+          where: {enabled: true},
+          include: {
+            tags: {
+              where: {enabled: true}
+            }
+          }
+        }
+      }
     });
 
-    if (node && node.enabled) {
+    if (node && node.enabled && this.isRunning) {
       await this.startConnection(node);
     }
   }
@@ -507,11 +588,11 @@ export class ModbusManager {
         }
       });
 
-      const displayDeviceName = `${device.connectionNode.name} → ${device.name}`;
-
       if (!device) {
-        throw new Error(`Устройство ${displayDeviceName} не найдено`);
+        throw new Error(`Устройство не найдено`);
       }
+
+      const displayDeviceName = `${device.connectionNode.name} → ${device.name}`;
 
       // Находим соединение узла связи
       const connection = this.connections.get(device.connectionNodeId);
@@ -521,7 +602,10 @@ export class ModbusManager {
 
       console.log(`Reconnecting device ${displayDeviceName}...`);
 
-      // Если устройство включено, запускаем постоянный опрос
+      // Останавливаем текущий опрос, если он запущен
+      this.stopDevicePolling(deviceId);
+
+      // Загружаем актуальные данные устройства
       const updatedDevice = await this.prisma.device.findUnique({
         where: {id: deviceId},
         include: {
@@ -531,18 +615,26 @@ export class ModbusManager {
         }
       });
 
-      if (updatedDevice && updatedDevice.enabled) {
-        // Проверяем, не запущен ли уже опрос
-        if (!this.pollingIntervals.has(deviceId)) {
-          // Обновляем устройство в connection.devices
-          connection.devices.set(deviceId, updatedDevice);
-          this.startDevicePolling(updatedDevice, connection.client);
-        }
+      if (!updatedDevice) {
+        throw new Error(`Устройство ${displayDeviceName} не найдено после обновления`);
       }
 
-      return {success: true, enabled: updatedDevice?.enabled};
+      if (updatedDevice.enabled && updatedDevice.tags.length > 0) {
+        // Обновляем устройство в connection.devices
+        connection.devices.set(deviceId, updatedDevice);
+        
+        // Небольшая задержка перед запуском опроса для стабильности
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Запускаем опрос устройства
+        this.startDevicePolling(updatedDevice, connection.client);
+      } else {
+        console.log(`Device ${displayDeviceName} is disabled or has no enabled tags`);
+      }
+
+      return {success: true, enabled: updatedDevice.enabled};
     } catch (error) {
-      console.error(`Error reconnecting device ${displayDeviceName}:`, error);
+      console.error(`Error reconnecting device:`, error);
       throw error;
     }
   }
