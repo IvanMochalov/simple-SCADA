@@ -158,6 +158,12 @@ export default function RealTimeView() {
       )
     }
 
+    if (!device.enabled) {
+      return (
+        <Text type="secondary">Устройство не включено в работу</Text>
+      )
+    }
+
     if (!tag.enabled) {
       return (
         <Text type="secondary">Тег не включен в работу</Text>
