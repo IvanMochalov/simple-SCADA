@@ -39,6 +39,7 @@ export const api = {
   // POST /api/devices/:id/reconnect - Переподключить устройство
   reconnectDeviceById: async (id) => await axios.post(`${API_BASE}/devices/${id}/reconnect`),
 
+  // API HISTORY - История
   // GET /api/history/system - Получить историю для всей системы
   getHistorySystem: async (requestData) => await axios.get(`${API_BASE}/history/system`, requestData),
 
@@ -55,9 +56,6 @@ export const api = {
   // DELETE /api/tags/:id - Удалить тег
   removeTagById: async (id) => await axios.delete(`${API_BASE}/tags/${id}`),
 
-  // GET /api/history/tag/:tagId - Получить историю для тега
-  getHistoryTagById: async (id, requestData) => await axios.get(`${API_BASE}/history/tag/${id}`, requestData),
-
   // POST /api/tags - Создать тег
   createTag: async (requestData) => await axios.post(`${API_BASE}/tags`, requestData),
 
@@ -67,10 +65,7 @@ export const api = {
   // POST /api/tags/:id/write - Записать значение в тег
   writeTagValue: async (id, value) => await axios.post(`${API_BASE}/tags/${id}/write`, {value}),
 
-  // API MODBUS - Управление Modbus Manager
-  // GET /api/modbus/status - Получить статус Modbus Manager
-  getModbusStatus: async () => await axios.get(`${API_BASE}/modbus/status`),
-
+  // API MODBUS - Modbus manager
   // POST /api/modbus/start - Запустить Modbus Manager
   startModbus: async () => await axios.post(`${API_BASE}/modbus/start`),
 

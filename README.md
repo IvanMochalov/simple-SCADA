@@ -122,7 +122,6 @@ npm run dev
 
 ### REST API
 
-- `GET /api/modbus/status` - Получить статус Modbus Manager
 - `POST /api/modbus/start` - Запустить Modbus Manager
 - `POST /api/modbus/stop` - Остановить Modbus Manager
 
@@ -132,14 +131,12 @@ npm run dev
 - `PUT /api/connections/:id` - Обновить узел связи
 - `DELETE /api/connections/:id` - Удалить узел связи
 
-- `GET /api/devices` - Получить все устройства
 - `POST /api/devices` - Создать устройство
 - `GET /api/devices/:id` - Получить устройство
 - `PUT /api/devices/:id` - Обновить устройство
 - `DELETE /api/devices/:id` - Удалить устройство
 - `POST /api/devices/:id/reconnect` - Переподключить устройство
 
-- `GET /api/tags` - Получить все теги
 - `POST /api/tags` - Создать тег
 - `GET /api/tags/:id` - Получить тег
 - `PUT /api/tags/:id` - Обновить тег
@@ -149,7 +146,6 @@ npm run dev
 - `GET /api/history/system` — история всей системы
 - `GET /api/history/node/:nodeId` — история узла связи
 - `GET /api/history/device/:deviceId` — история устройства
-- `GET /api/history/tag/:tagId` — история тега
 
 ### WebSocket
 
