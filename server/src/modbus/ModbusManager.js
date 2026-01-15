@@ -131,11 +131,11 @@ export class ModbusManager {
         textDescription = `Проверьте подключение ${node.name}: ${node.comPort}.`;
       }
       // Обрабатываем специфичные ошибки
-      const message = {title: error.message, description: textDescription};
 
       await this.stopConnection(node.id);
-      // Отправляем сообщение об ошибке на клиент
-      this.broadcastMessage(message, 'error');
+      throw new Error(error.message, {details: textDescription});
+      // const message = {title: error.message, description: textDescription};
+      // this.broadcastMessage(message, 'error');
     } finally {
       this.broadcastStateUpdate();
     }
