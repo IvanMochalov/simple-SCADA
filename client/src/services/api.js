@@ -64,6 +64,9 @@ export const api = {
   // PUT /api/tags/:id - Обновить тег
   updateTagById: async (id, requestData) => await axios.put(`${API_BASE}/tags/${id}`, requestData),
 
+  // POST /api/tags/:id/write - Записать значение в тег
+  writeTagValue: async (id, value) => await axios.post(`${API_BASE}/tags/${id}/write`, {value}),
+
   // API MODBUS - Управление Modbus Manager
   // GET /api/modbus/status - Получить статус Modbus Manager
   getModbusStatus: async () => await axios.get(`${API_BASE}/modbus/status`),

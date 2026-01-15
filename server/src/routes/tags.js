@@ -188,5 +188,23 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
+  // Записать значение в тег
+  router.post('/:id/write', async (req, res) => {
+    try {
+      const {id} = req.params;
+      const {value} = req.body;
+
+      if (value === undefined || value === null) {
+        return res.status(400).json({error: 'Значение не указано'});
+      }
+
+      const result = await modbusManager.writeTagValue(id, value);
+      res.json(result);
+    } catch (error) {
+      console.error('Error writing tag value:', error);
+      res.status(500).json({error: error.message});
+    }
+  });
+
   return router;
 }

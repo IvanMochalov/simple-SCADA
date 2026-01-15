@@ -484,6 +484,172 @@ export class ModbusManager {
     return buffer.readFloatBE(0);
   }
 
+  /**
+   * Конвертирует IEEE 754 float (32 бита) в два Modbus регистра (16 бит каждый)
+   * Обратная операция для convertRegistersToFloat
+   * 
+   * @param {number} floatValue - Float значение
+   * @returns {Array<number>} [highWord, lowWord] - два 16-битных регистра
+   */
+  convertFloatToRegisters(floatValue) {
+    // Создаем буфер для 32-битного float
+    const buffer = Buffer.allocUnsafe(4);
+    
+    // Записываем float как IEEE 754 (big-endian)
+    buffer.writeFloatBE(floatValue, 0);
+    
+    // Читаем два 16-битных регистра
+    const highWord = buffer.readUInt16BE(0);
+    const lowWord = buffer.readUInt16BE(2);
+    
+    return [highWord, lowWord];
+  }
+
+  /**
+   * Записывает значение в тег устройства
+   * 
+   * @param {string} tagId - ID тега
+   * @param {number|string} value - Значение для записи
+   * @returns {Promise<{success: boolean, value: any}>}
+   */
+  async writeTagValue(tagId, value) {
+    try {
+      // Загружаем тег с информацией об устройстве и узле связи
+      const tag = await this.prisma.tag.findUnique({
+        where: {id: tagId},
+        include: {
+          device: {
+            include: {
+              connectionNode: true
+            }
+          }
+        }
+      });
+
+      if (!tag) {
+        throw new Error('Тег не найден');
+      }
+
+      if (tag.accessType !== 'ReadWrite') {
+        throw new Error('Тег доступен только для чтения');
+      }
+
+      if (!tag.enabled) {
+        throw new Error('Тег не включен в работу');
+      }
+
+      // Проверяем, что устройство включено
+      if (!tag.device.enabled) {
+        throw new Error('Устройство не включено в работу');
+      }
+
+      // Находим соединение узла связи
+      const connection = this.connections.get(tag.device.connectionNodeId);
+      if (!connection || !connection.client) {
+        throw new Error('Узел связи не подключен');
+      }
+
+      const client = connection.client;
+      const device = tag.device;
+
+      // Устанавливаем unit ID для устройства
+      client.setID(device.address);
+
+      // Конвертируем значение в нужный формат
+      let writeValue = value;
+      if (typeof value === 'string') {
+        writeValue = parseFloat(value);
+        if (isNaN(writeValue)) {
+          throw new Error('Некорректное значение');
+        }
+      }
+
+      // Записываем значение в зависимости от типа регистра
+      switch (tag.registerType) {
+        case 'HOLDING_REGISTER':
+          // Для float нужно записать 2 регистра
+          if (tag.deviceDataType === 'float' || tag.serverDataType === 'float') {
+            const [highWord, lowWord] = this.convertFloatToRegisters(writeValue);
+            await client.writeMultipleRegisters(tag.address, [highWord, lowWord]);
+          } else {
+            // Для целых чисел записываем одно значение
+            // Преобразуем int32 в int16 если нужно
+            let registerValue = writeValue;
+            if (tag.deviceDataType === 'int16' && tag.serverDataType === 'int32') {
+              // Ограничиваем до диапазона int16
+              if (registerValue > 32767) registerValue = 32767;
+              if (registerValue < -32768) registerValue = -32768;
+            }
+            await client.writeSingleRegister(tag.address, registerValue);
+          }
+          break;
+
+        case 'COIL':
+          // Для COIL записываем boolean значение
+          await client.writeSingleCoil(tag.address, writeValue !== 0 && writeValue !== false);
+          break;
+
+        case 'INPUT_REGISTER':
+          throw new Error('INPUT_REGISTER доступен только для чтения');
+
+        case 'DISCRETE_INPUT':
+          throw new Error('DISCRETE_INPUT доступен только для чтения');
+
+        default:
+          throw new Error(`Неподдерживаемый тип регистра: ${tag.registerType}`);
+      }
+
+      // Небольшая задержка после записи для стабильности
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Читаем значение обратно для подтверждения
+      let readValue = null;
+      if (tag.registerType === 'HOLDING_REGISTER') {
+        const isFloat = tag.deviceDataType === 'float' || tag.serverDataType === 'float';
+        if (isFloat) {
+          const readResult = await client.readHoldingRegisters(tag.address, 2);
+          readValue = this.convertRegistersToFloat(readResult.data[0], readResult.data[1]);
+        } else {
+          const readResult = await client.readHoldingRegisters(tag.address, 1);
+          readValue = this.convertValue(readResult.data[0], tag.deviceDataType, tag.serverDataType);
+        }
+      } else if (tag.registerType === 'COIL') {
+        const readResult = await client.readCoils(tag.address, 1);
+        readValue = readResult.data[0] ? 1 : 0;
+      }
+
+      // Обновляем кэш значений
+      if (!this.tagValuesCache.has(device.id)) {
+        this.tagValuesCache.set(device.id, new Map());
+      }
+      const deviceCache = this.tagValuesCache.get(device.id);
+      deviceCache.set(tagId, {
+        tagId: tag.id,
+        tagName: tag.name,
+        value: readValue,
+        timestamp: new Date().toISOString()
+      });
+
+      // Отправляем обновленное значение через WebSocket
+      this.broadcastTagValues(device.id, {
+        [tagId]: {
+          tagId: tag.id,
+          tagName: tag.name,
+          value: readValue,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      return {
+        success: true,
+        value: readValue
+      };
+    } catch (error) {
+      console.error(`Error writing tag value ${tagId}:`, error);
+      throw error;
+    }
+  }
+
 
   async collectHistoryData() {
     try {

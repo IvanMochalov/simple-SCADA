@@ -14,14 +14,18 @@ import {
   Space,
   Row,
   Col,
-  Tooltip
+  Tooltip,
+  Modal,
+  InputNumber,
+  Form
 } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import {isNumeric} from "../utils/index.js";
 
@@ -34,6 +38,10 @@ export default function RealTimeView() {
   const [expandedDevices, setExpandedDevices] = useState(new Set())
   const [isModbusRunning, setIsModbusRunning] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
+  const [writeModalVisible, setWriteModalVisible] = useState(false)
+  const [selectedTagForWrite, setSelectedTagForWrite] = useState(null)
+  const [writeForm] = Form.useForm()
+  const [isWriting, setIsWriting] = useState(false)
 
   // Фильтруем только включенные узлы связи
   const enabledNodes = useMemo(() => {
@@ -123,6 +131,33 @@ export default function RealTimeView() {
     } catch (error) {
       console.error('Error reconnecting device:', error)
       notification.error('Ошибка при переподключении устройства', error.response?.data?.error || "")
+    }
+  }
+
+  const handleWriteTag = (device, tag, node) => {
+    const tagValue = getTagValue(device.id, tag.id)
+    setSelectedTagForWrite({device, tag, node, currentValue: tagValue?.value})
+    writeForm.setFieldsValue({value: tagValue?.value || 0})
+    setWriteModalVisible(true)
+  }
+
+  const handleWriteSubmit = async () => {
+    if (!selectedTagForWrite) return
+
+    try {
+      const values = await writeForm.validateFields()
+      setIsWriting(true)
+
+      await api.writeTagValue(selectedTagForWrite.tag.id, values.value)
+      notification.success(`Значение тега "${selectedTagForWrite.tag.name}" успешно записано`)
+      setWriteModalVisible(false)
+      setSelectedTagForWrite(null)
+      writeForm.resetFields()
+    } catch (error) {
+      console.error('Error writing tag value:', error)
+      notification.error('Ошибка при записи значения', error.response?.data?.error || error.message || "")
+    } finally {
+      setIsWriting(false)
     }
   }
 
@@ -236,6 +271,14 @@ export default function RealTimeView() {
   }
 
   const renderTagContent = (device, tag, node) => {
+    const tagValue = getTagValue(device.id, tag.id)
+    const canWrite = tag.accessType === 'ReadWrite' && 
+                     isModbusRunning && 
+                     node.connectionStatus === 'connected' && 
+                     device.enabled && 
+                     tag.enabled &&
+                     tagValue && 
+                     !tagValue.error
 
     return (
       <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
@@ -250,13 +293,26 @@ export default function RealTimeView() {
             <div style={{textAlign: "start"}}>
               <Space align={"start"} style={{justifyContent: "space-between", width: "100%"}}>
                 <Text strong>{tag.name}</Text>
-                <Tag
-                  color={tag.enabled ? 'success' : 'default'}
-                  icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
-                  style={{fontSize: '10px'}}
-                >
-                  {tag.enabled ? 'Вкл' : 'Выкл'}
-                </Tag>
+                <Space size="small">
+                  <Tag
+                    color={tag.enabled ? 'success' : 'default'}
+                    icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
+                    style={{fontSize: '10px'}}
+                  >
+                    {tag.enabled ? 'Вкл' : 'Выкл'}
+                  </Tag>
+                  {canWrite && (
+                    <Tooltip title="Изменить значение">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined/>}
+                        onClick={() => handleWriteTag(device, tag, node)}
+                        style={{padding: '0 4px'}}
+                      />
+                    </Tooltip>
+                  )}
+                </Space>
               </Space>
               <br/>
               <Text type="secondary" style={{fontSize: '12px'}}>
@@ -372,6 +428,50 @@ export default function RealTimeView() {
           ))}
         </Space>
       </Space>
+
+      {/* Модальное окно для записи значения */}
+      <Modal
+        title={`Изменить значение тега "${selectedTagForWrite?.tag?.name || ''}"`}
+        open={writeModalVisible}
+        onOk={handleWriteSubmit}
+        onCancel={() => {
+          setWriteModalVisible(false)
+          setSelectedTagForWrite(null)
+          writeForm.resetFields()
+        }}
+        confirmLoading={isWriting}
+        okText="Записать"
+        cancelText="Отмена"
+      >
+        <Form
+          form={writeForm}
+          layout="vertical"
+          initialValues={{
+            value: selectedTagForWrite?.currentValue || 0
+          }}
+        >
+          <Form.Item
+            label="Новое значение"
+            name="value"
+            rules={[
+              {required: true, message: 'Введите значение'},
+              {type: 'number', message: 'Значение должно быть числом'}
+            ]}
+          >
+            <InputNumber
+              style={{width: '100%'}}
+              placeholder="Введите значение"
+              step={selectedTagForWrite?.tag?.serverDataType === 'float' ? 0.01 : 1}
+              precision={selectedTagForWrite?.tag?.serverDataType === 'float' ? 2 : 0}
+            />
+          </Form.Item>
+          {selectedTagForWrite?.currentValue !== undefined && (
+            <Text type="secondary" style={{fontSize: '12px'}}>
+              Текущее значение: {formatTagValue(selectedTagForWrite.currentValue)}
+            </Text>
+          )}
+        </Form>
+      </Modal>
     </div>
   )
 }

@@ -144,6 +144,7 @@ npm run dev
 - `GET /api/tags/:id` - Получить тег
 - `PUT /api/tags/:id` - Обновить тег
 - `DELETE /api/tags/:id` - Удалить тег
+- `POST /api/tags/:id/write` - Записать значение в тег
 
 - `GET /api/history/system` — история всей системы
 - `GET /api/history/node/:nodeId` — история узла связи
