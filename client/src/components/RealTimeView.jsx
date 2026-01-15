@@ -166,7 +166,7 @@ export default function RealTimeView() {
 
         <Space orientation="vertical" style={{width: '100%'}} size="middle">
           {enabledNodes.map(node => (
-            <Card key={node.id} size="small">
+            <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
               <Collapse
                 activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                 onChange={() => toggleNode(node.id)}
@@ -190,11 +190,12 @@ export default function RealTimeView() {
                   ) : (
                     <Space orientation="vertical" style={{width: '100%'}} size="small">
                       {node.devices.map(device => (
-                        <Card key={device.id} size="small" style={{marginTop: 8}} className="device-card">
+                        <Card key={device.id} size="small" style={{marginTop: 8}} className="device-card"
+                              styles={{body: {padding: "0"}}}>
                           <Collapse
+                            styles={{header: {alignItems: "center"}}}
                             activeKey={expandedDevices.has(device.id) ? [device.id] : []}
                             onChange={() => toggleDevice(device.id)}
-                            ghost
                             items={[{
                               key: device.id,
                               label: (

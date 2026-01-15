@@ -1,12 +1,11 @@
 import React from 'react'
 import {Navigate, createBrowserRouter, RouterProvider} from 'react-router-dom'
-import Layout from './components/Layout'
-import ConnectionTree from './components/ConnectionTree'
-import RealTimeView from './components/RealTimeView'
-import HistoryView from './components/HistoryView'
-import {WebSocketProvider} from './context/WebSocketContext'
-import {NotificationProvider} from './context/NotificationContext'
-import './App.css'
+import Layout from './Layout.jsx'
+import ConnectionTree from './ConnectionTree.jsx'
+import RealTimeView from './RealTimeView.jsx'
+import HistoryView from './HistoryView.jsx'
+import {WebSocketProvider} from '../context/WebSocketContext.jsx'
+import {NotificationProvider} from '../context/NotificationContext.jsx'
 
 const router = createBrowserRouter([
   {

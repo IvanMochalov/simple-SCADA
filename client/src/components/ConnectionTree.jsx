@@ -3,7 +3,6 @@ import {useWebSocket} from '../context/WebSocketContext'
 import ConnectionNodeForm from './ConnectionNodeForm'
 import DeviceForm from './DeviceForm'
 import TagForm from './TagForm'
-import './ConnectionTree.css'
 import {api} from "../services/api.js";
 import {
   Card,
@@ -14,7 +13,7 @@ import {
   Empty,
   Space,
   Modal,
-  Tooltip
+  Tooltip, Alert
 } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -32,7 +31,7 @@ const {confirm} = Modal;
 
 export default function ConnectionTree() {
   const notification = useNotification();
-  const {state, refreshState} = useWebSocket()
+  const {state, refreshState, isConnected} = useWebSocket()
   const [nodes, setNodes] = useState([])
   const [expandedNodes, setExpandedNodes] = useState(new Set())
   const [expandedDevices, setExpandedDevices] = useState(new Set())
@@ -145,6 +144,33 @@ export default function ConnectionTree() {
     })
   }
 
+  if (!isConnected) {
+    return (
+      <div className="realtime-view">
+        <Alert
+          title="Нет подключения к серверу"
+          description="Проверьте соединение с сервером."
+          type="warning"
+          showIcon
+        />
+      </div>
+    )
+  }
+
+  if (!state || !state?.nodes || state?.nodes?.length === 0) {
+    return (
+      <Card className="history-view">
+        <Empty
+          description={
+            <Text type="secondary">
+              Нет узлов связи. Создайте узел связи в разделе "Конфигурация".
+            </Text>
+          }
+        />
+      </Card>
+    )
+  }
+
   return (
     <div style={{maxWidth: "1200px", margin: "0 auto", padding: "16px"}}>
       <Space orientation="vertical" style={{width: '100%'}} size="large">
@@ -167,8 +193,9 @@ export default function ConnectionTree() {
         ) : (
           <Space orientation="vertical" style={{width: '100%'}} size="middle">
             {nodes.map(node => (
-              <Card key={node.id} size="small">
+              <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
                 <Collapse
+                  styles={{header: {alignItems: "center"}}}
                   activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                   onChange={() => toggleNode(node.id)}
                   ghost
@@ -223,11 +250,11 @@ export default function ConnectionTree() {
                     ) : (
                       <Space orientation="vertical" style={{width: '100%'}} size="small">
                         {node.devices.map(device => (
-                          <Card key={device.id} size="small" style={{marginTop: 8}}>
+                          <Card key={device.id} size="small" style={{marginTop: 8}} styles={{body: {padding: "0"}}}>
                             <Collapse
+                              styles={{header: {alignItems: "center"}}}
                               activeKey={expandedDevices.has(device.id) ? [device.id] : []}
                               onChange={() => toggleDevice(device.id)}
-                              ghost
                               items={[{
                                 key: device.id,
                                 label: (

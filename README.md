@@ -5,7 +5,7 @@
 ## Технологии
 
 - **Сервер**: Node.js, Express, WebSocket, modbus-serial, Prisma ORM, SQLite
-- **Клиент**: React, Vite, WebSocket
+- **Клиент**: React, Vite, WebSocket, Ant Design
 
 ## Структура проекта
 

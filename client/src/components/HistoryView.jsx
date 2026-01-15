@@ -14,7 +14,7 @@ import {
   Col,
   Typography,
   Empty,
-  Form,
+  Form, Alert,
 } from 'antd';
 import dayjs from 'dayjs';
 import {useNotification} from "../context/NotificationContext.jsx";
@@ -23,7 +23,7 @@ const {Title, Text} = Typography;
 
 export default function HistoryView() {
   const notification = useNotification();
-  const {state} = useWebSocket()
+  const {state, isConnected} = useWebSocket()
   const [form] = Form.useForm()
 
   const [selectedDevice, setSelectedDevice] = useState("")
@@ -64,7 +64,7 @@ export default function HistoryView() {
       tags: tags
     };
   }, [history]);
-  
+
   const allDevices = useMemo(() => {
     const devices = [];
 
@@ -220,6 +220,19 @@ export default function HistoryView() {
     }
   }
 
+  if (!isConnected) {
+    return (
+      <div className="realtime-view">
+        <Alert
+          title="Нет подключения к серверу"
+          description="Проверьте соединение с сервером."
+          type="warning"
+          showIcon
+        />
+      </div>
+    )
+  }
+
   if (!state || !state?.nodes || state?.nodes?.length === 0) {
     return (
       <Card className="history-view">
@@ -318,12 +331,12 @@ export default function HistoryView() {
                     placeholder="Время"
                     disabledTime={() => {
                       if (!endDate || !startDate) return {}
-                      
+
                       // Если даты одинаковые, ограничиваем время
                       if (endDate.isSame(startDate, 'day')) {
                         const startHour = startDate.hour()
                         const startMinute = startDate.minute()
-                        
+
                         return {
                           disabledHours: () => {
                             // Отключаем все часы до часа начала
@@ -338,7 +351,7 @@ export default function HistoryView() {
                           }
                         }
                       }
-                      
+
                       return {}
                     }}
                   />
@@ -375,7 +388,7 @@ export default function HistoryView() {
                 columns={columns}
                 rowKey="id"
                 size="small"
-                scroll={{ x: 'max-content', y: undefined }}
+                scroll={{x: 'max-content', y: undefined}}
                 pagination={{
                   defaultPageSize: 10,
                   showSizeChanger: true,

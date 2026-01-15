@@ -114,12 +114,10 @@ export class ModbusManager {
 
       // Опрашиваем только включенные устройства
       for (const device of enabledDevices) {
-        // Используем setTimeout для задержки между запусками опроса устройств
         this.startDevicePolling(device, client);
       }
 
       this.connections.set(node.id, connection);
-      this.broadcastStateUpdate();
 
       console.log(`Connection started for node ${node.name}`);
     } catch (error) {
@@ -133,7 +131,7 @@ export class ModbusManager {
         errorMessage = 'Не удалось открыть COM порт. Проверьте, что порт существует и доступен.';
       }
 
-      // Уведомляем клиентов об ошибке
+    } finally {
       this.broadcastStateUpdate();
     }
   }
@@ -163,11 +161,12 @@ export class ModbusManager {
       }
 
       this.connections.delete(nodeId);
-      this.broadcastStateUpdate();
 
       console.log(`Connection stopped for node ${nodeId}`);
     } catch (error) {
       console.error(`Error stopping connection ${nodeId}:`, error);
+    } finally {
+      this.broadcastStateUpdate();
     }
   }
 
@@ -193,7 +192,7 @@ export class ModbusManager {
     }
   }
 
-  async pollDevice(device, client, skipStatusCheck = false) {
+  async pollDevice(device, client) {
     try {
       // Загружаем актуальные теги устройства
       const deviceWithTags = await this.prisma.device.findUnique({
@@ -205,20 +204,8 @@ export class ModbusManager {
         }
       });
 
-      if (!deviceWithTags) {
-        return;
-      }
-
-      // Проверяем, включено ли устройство - если отключено, останавливаем опрос
-      // При переподключении (skipStatusCheck = true) пропускаем эту проверку
-      if (!skipStatusCheck) {
-        if (!deviceWithTags.enabled) {
-          this.stopDevicePolling(device.id);
-          return;
-        }
-      }
-
-      if (deviceWithTags.tags.length === 0) {
+      if (!deviceWithTags || !deviceWithTags.enabled || deviceWithTags.tags.length === 0) {
+        this.stopDevicePolling(device.id);
         return;
       }
 
@@ -418,12 +405,10 @@ export class ModbusManager {
     });
 
     this.wss.clients.forEach((client) => {
-      if (client.readyState === 1) { // WebSocket.OPEN
+      if (client.readyState === 1) {
         client.send(message);
       }
     });
-
-    // История сохраняется каждую минуту через collectHistoryData
   }
 
   broadcastStateUpdate() {
@@ -536,9 +521,6 @@ export class ModbusManager {
       }
 
       console.log(`Reconnecting device ${displayDeviceName}...`);
-
-      // Выполняем одноразовый опрос устройства с пропуском проверки enabled
-      await this.pollDevice(device, connection.client, true);
 
       // Если устройство включено, запускаем постоянный опрос
       const updatedDevice = await this.prisma.device.findUnique({
