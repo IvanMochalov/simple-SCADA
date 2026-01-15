@@ -145,6 +145,27 @@ export default function HistoryView() {
     setHistory([]);
   };
 
+  // Форматирует значение тега для отображения (та же логика, что и в RealTimeView)
+  const formatTagValue = (value, tag) => {
+    if (value === null || value === undefined) {
+      return '—'
+    }
+
+    // Проверяем, является ли значение float (число с десятичной частью)
+    // или тип данных тега указывает на float
+    const isFloat = tag?.serverDataType === 'float' ||
+      tag?.deviceDataType === 'float' ||
+      (typeof value === 'number' && value % 1 !== 0)
+
+    if (isFloat) {
+      // Ограничиваем до 3 знаков после запятой для float
+      return Number(value).toFixed(3)
+    }
+
+    // Для целых чисел возвращаем как есть
+    return value
+  }
+
   const columns = useMemo(() => {
     const baseColumns = [
       {
@@ -174,17 +195,14 @@ export default function HistoryView() {
           key: `tag_${tagKey}`,
           width: 150,
           render: (value) => {
-            // Форматируем float значения
-            const isFloat = tag.serverDataType === 'float' || tag.deviceDataType === 'float' || 
-                           (typeof value === 'number' && value % 1 !== 0);
-            const formattedValue = isFloat && value !== null ? Number(value).toFixed(3) : value;
+            const formattedValue = formatTagValue(value, tag);
             
             return (
               <span className="value-cell" style={{
                 color: value !== null && value !== undefined ? '#1890ff' : '#999',
                 fontWeight: value !== null && value !== undefined ? '600' : 'normal'
               }}>
-                {value !== null && value !== undefined ? formattedValue : '-'}
+                {formattedValue}
               </span>
             );
           },
