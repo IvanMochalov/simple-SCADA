@@ -91,7 +91,6 @@ export default function ConnectionTree() {
       onOk: async () => {
         try {
           await api.removeNodeById(nodeId)
-          await loadNodes()
           refreshState()
           notification.success('Узел связи удален')
         } catch (error) {
@@ -112,7 +111,6 @@ export default function ConnectionTree() {
       onOk: async () => {
         try {
           await api.removeDeviceById(deviceId)
-          await loadNodes()
           refreshState()
           notification.success('Устройство удалено')
         } catch (error) {
@@ -133,7 +131,6 @@ export default function ConnectionTree() {
       onOk: async () => {
         try {
           await api.removeTagById(tagId)
-          await loadNodes()
           refreshState()
           notification.success('Тег удален')
         } catch (error) {
@@ -373,7 +370,6 @@ export default function ConnectionTree() {
             setSelectedNodeId(null)
           }}
           onSave={async () => {
-            await loadNodes()
             refreshState()
             setShowNodeForm(false)
             setSelectedNodeId(null)
@@ -391,7 +387,6 @@ export default function ConnectionTree() {
             setSelectedNodeId(null)
           }}
           onSave={async () => {
-            await loadNodes()
             refreshState()
             setShowDeviceForm(false)
             setSelectedDeviceId(null)
@@ -410,7 +405,6 @@ export default function ConnectionTree() {
             setSelectedDeviceId(null)
           }}
           onSave={async () => {
-            await loadNodes()
             refreshState()
             setShowTagForm(false)
             setSelectedTagId(null)

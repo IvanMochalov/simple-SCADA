@@ -1,6 +1,6 @@
 import React, {createContext, useContext, useEffect, useState, useRef} from 'react'
 import axios from 'axios'
-import {API_BASE, HOST} from "../services/api.js";
+import {api, API_BASE, HOST} from "../services/api.js";
 import {useNotification} from './NotificationContext.jsx';
 
 const WebSocketContext = createContext(null)
@@ -60,7 +60,7 @@ export function WebSocketProvider({children}) {
             })
           } else if (message.type === 'message') {
             // Обрабатываем сообщения от сервера и показываем уведомление
-            const { text, messageType } = message.data
+            const {text, messageType} = message.data
             const notificationMethod = notification[messageType] || notification.info
             notificationMethod(text.title, text.description)
           }
@@ -97,7 +97,7 @@ export function WebSocketProvider({children}) {
     tagValues,
     refreshState: async () => {
       try {
-        const response = await axios.get(`${API_BASE}/connections`)
+        const response = await api.getAllNodes()
         setState({nodes: response.data})
       } catch (error) {
         console.error('Error refreshing state:', error)
