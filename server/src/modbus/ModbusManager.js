@@ -471,7 +471,8 @@ export class ModbusManager {
                 name: tag.name,
                 address: tag.address,
                 registerType: tag.registerType,
-                accessType: tag.accessType
+                accessType: tag.accessType,
+                enabled: tag.enabled
               }))
             }))
           }))
