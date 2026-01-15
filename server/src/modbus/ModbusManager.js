@@ -122,9 +122,16 @@ export class ModbusManager {
       console.log(`Connection started for node ${node.name}`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
-
+      let textDescription = "";
+      if (error.message && error.message.includes('Access denied')) {
+        textDescription = `Доступ к COM порту ${node.name} запрещен. Убедитесь, что порт не занят другим приложением.`;
+      } else if (error.message && error.message.includes('cannot open')) {
+        textDescription = `Не удалось открыть COM порт ${node.name}. Проверьте, что порт существует и доступен.`;
+      } else {
+        textDescription = `Проверьте подключение ${node.name}`;
+      }
       // Обрабатываем специфичные ошибки
-      const message = {title: error.message, description: `Проверьте подключение ${node.name}`};
+      const message = {title: error.message, description: textDescription};
 
       // Отправляем сообщение об ошибке на клиент
       this.broadcastMessage(message, 'error');
