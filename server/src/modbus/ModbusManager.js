@@ -71,6 +71,7 @@ export class ModbusManager {
       }
     }
     this.connections.clear();
+    this.broadcastMessage({title: "Modbus manager остановлен"}, 'warning');
 
     // Останавливаем сбор истории
     if (this.historyInterval) {
