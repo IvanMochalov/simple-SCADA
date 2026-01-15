@@ -9,6 +9,8 @@ export class ModbusManager {
     this.historyInterval = null;
     this.isRunning = false;
     this.tagValuesCache = new Map(); // deviceId -> { tagId -> { value, timestamp } }
+    this.devicePollingLocks = new Map(); // deviceId -> Promise (текущий опрос)
+    this.deviceWriteLocks = new Map(); // deviceId -> Promise (текущая запись)
   }
 
   async start() {
@@ -273,6 +275,36 @@ export class ModbusManager {
   }
 
   async pollDevice(device, client) {
+    // Проверяем, не идет ли запись в это устройство
+    const writeLock = this.deviceWriteLocks.get(device.id);
+    if (writeLock) {
+      // Ждем завершения записи
+      try {
+        await writeLock;
+      } catch (error) {
+        // Игнорируем ошибки записи
+      }
+      // Если после ожидания все еще идет запись, пропускаем этот цикл опроса
+      if (this.deviceWriteLocks.has(device.id)) {
+        return;
+      }
+    }
+
+    // Сохраняем Promise текущего опроса для синхронизации
+    const pollingPromise = this._doPollDevice(device, client);
+    this.devicePollingLocks.set(device.id, pollingPromise);
+    
+    try {
+      await pollingPromise;
+    } finally {
+      // Удаляем блокировку после завершения опроса
+      if (this.devicePollingLocks.get(device.id) === pollingPromise) {
+        this.devicePollingLocks.delete(device.id);
+      }
+    }
+  }
+
+  async _doPollDevice(device, client) {
     try {
       // Загружаем актуальные теги устройства
       const deviceWithTags = await this.prisma.device.findUnique({
@@ -513,9 +545,10 @@ export class ModbusManager {
    * @returns {Promise<{success: boolean, value: any}>}
    */
   async writeTagValue(tagId, value) {
+    let tag = null;
     try {
       // Загружаем тег с информацией об устройстве и узле связи
-      const tag = await this.prisma.tag.findUnique({
+      tag = await this.prisma.tag.findUnique({
         where: {id: tagId},
         include: {
           device: {
@@ -552,8 +585,88 @@ export class ModbusManager {
       const client = connection.client;
       const device = tag.device;
 
+      // Создаем Promise для блокировки записи
+      const writePromise = this._doWriteTagValue(tag, device, client, value);
+      this.deviceWriteLocks.set(device.id, writePromise);
+
+      try {
+        // Ждем завершения текущего опроса, если он идет
+        const pollingLock = this.devicePollingLocks.get(device.id);
+        if (pollingLock) {
+          try {
+            await pollingLock;
+          } catch (error) {
+            // Игнорируем ошибки опроса
+          }
+          // Небольшая задержка после завершения опроса
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        // Приостанавливаем опрос устройства на время записи
+        this.stopDevicePolling(device.id);
+
+        // Выполняем запись
+        const result = await writePromise;
+        
+        return result;
+      } finally {
+        // Удаляем блокировку записи
+        if (this.deviceWriteLocks.get(device.id) === writePromise) {
+          this.deviceWriteLocks.delete(device.id);
+        }
+        
+        // Возобновляем опрос устройства после записи
+        // Небольшая задержка перед возобновлением опроса
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Проверяем, что устройство все еще включено и соединение активно
+        const updatedDevice = await this.prisma.device.findUnique({
+          where: {id: device.id},
+          include: {
+            connectionNode: true
+          }
+        });
+        
+        if (updatedDevice && updatedDevice.enabled && connection.client) {
+          this.startDevicePolling(updatedDevice, connection.client);
+        }
+      }
+    } catch (error) {
+      console.error(`Error writing tag value ${tagId}:`, error);
+      
+      // Формируем более информативное сообщение об ошибке
+      let errorMessage = error.message;
+      
+      if (error.modbusCode === 1) {
+        errorMessage = `Устройство не поддерживает запись в адрес ${tag?.address || 'неизвестен'}. Проверьте, что адрес регистра правильный и устройство поддерживает запись в этот адрес.`;
+      } else if (error.modbusCode === 2) {
+        errorMessage = `Недопустимый адрес регистра ${tag?.address || 'неизвестен'}. Проверьте адрес регистра в настройках тега.`;
+      } else if (error.modbusCode === 3) {
+        errorMessage = `Недопустимое значение для записи. Проверьте диапазон допустимых значений для этого регистра.`;
+      } else if (error.name === 'TransactionTimedOutError') {
+        errorMessage = `Таймаут при записи значения. Устройство не ответило в течение установленного времени. Попробуйте переподключить устройство.`;
+      }
+      
+      // Создаем новую ошибку с более информативным сообщением
+      const enhancedError = new Error(errorMessage);
+      enhancedError.originalError = error;
+      enhancedError.modbusCode = error.modbusCode;
+      throw enhancedError;
+    }
+  }
+
+  async _doWriteTagValue(tag, device, client, value) {
+    // Сохраняем текущий таймаут и увеличиваем его для записи
+    // Запись может занимать больше времени, чем чтение
+    const originalTimeout = client.getTimeout ? client.getTimeout() : (device.responseTimeout || 1000);
+    const writeTimeout = Math.max(originalTimeout * 2, 3000); // Увеличиваем в 2 раза, минимум 3 секунды
+    
+    try {
       // Устанавливаем unit ID для устройства
       client.setID(device.address);
+      
+      // Устанавливаем увеличенный таймаут для записи
+      client.setTimeout(writeTimeout);
 
       // Конвертируем значение в нужный формат
       let writeValue = value;
@@ -570,7 +683,13 @@ export class ModbusManager {
           // Для float нужно записать 2 регистра
           if (tag.deviceDataType === 'float' || tag.serverDataType === 'float') {
             const [highWord, lowWord] = this.convertFloatToRegisters(writeValue);
-            await client.writeRegisters(tag.address, [highWord, lowWord]);
+            // Некоторые устройства не поддерживают функцию 16 (Write Multiple Registers)
+            // Поэтому записываем два регистра по отдельности
+            console.log(`Writing float to tag ${tag.name} (${tag.id}): address=${tag.address}, value=${writeValue}, highWord=${highWord}, lowWord=${lowWord}`);
+            await client.writeRegister(tag.address, highWord);
+            // Небольшая задержка между записями для стабильности RS-485
+            await new Promise(resolve => setTimeout(resolve, 50));
+            await client.writeRegister(tag.address + 1, lowWord);
           } else {
             // Для целых чисел записываем одно значение
             // Преобразуем int32 в int16 если нужно
@@ -579,8 +698,36 @@ export class ModbusManager {
               // Ограничиваем до диапазона int16
               if (registerValue > 32767) registerValue = 32767;
               if (registerValue < -32768) registerValue = -32768;
+              
+              // Преобразуем отрицательные числа в формат uint16 для Modbus
+              // Modbus регистры хранят значения как uint16 (0-65535)
+              // Отрицательные int16 значения представлены как 32768-65535
+              if (registerValue < 0) {
+                registerValue = registerValue + 65536;
+              }
             }
-            await client.writeRegister(tag.address, registerValue);
+            
+            // Убеждаемся, что значение в диапазоне uint16
+            registerValue = Math.round(registerValue);
+            if (registerValue < 0) registerValue = 0;
+            if (registerValue > 65535) registerValue = 65535;
+            
+            console.log(`Writing value to tag ${tag.name} (${tag.id}): address=${tag.address}, originalValue=${writeValue}, registerValue=${registerValue} (uint16), deviceDataType=${tag.deviceDataType}, serverDataType=${tag.serverDataType}, device=${device.name} (address ${device.address})`);
+            
+            // Некоторые устройства не поддерживают функцию 6 (Write Single Register)
+            // и требуют функцию 16 (Write Multiple Registers) даже для одного регистра
+            // Пробуем сначала функцию 16
+            try {
+              await client.writeRegisters(tag.address, [registerValue]);
+            } catch (error) {
+              // Если функция 16 не поддерживается, пробуем функцию 6
+              if (error.modbusCode === 1) {
+                console.log(`Function 16 not supported, trying function 6 for tag ${tag.name}`);
+                await client.writeRegister(tag.address, registerValue);
+              } else {
+                throw error;
+              }
+            }
           }
           break;
 
@@ -623,7 +770,7 @@ export class ModbusManager {
         this.tagValuesCache.set(device.id, new Map());
       }
       const deviceCache = this.tagValuesCache.get(device.id);
-      deviceCache.set(tagId, {
+      deviceCache.set(tag.id, {
         tagId: tag.id,
         tagName: tag.name,
         value: readValue,
@@ -632,7 +779,7 @@ export class ModbusManager {
 
       // Отправляем обновленное значение через WebSocket
       this.broadcastTagValues(device.id, {
-        [tagId]: {
+        [tag.id]: {
           tagId: tag.id,
           tagName: tag.name,
           value: readValue,
@@ -640,12 +787,21 @@ export class ModbusManager {
         }
       });
 
+      // Восстанавливаем оригинальный таймаут
+      client.setTimeout(originalTimeout);
+
       return {
         success: true,
         value: readValue
       };
     } catch (error) {
-      console.error(`Error writing tag value ${tagId}:`, error);
+      // Восстанавливаем оригинальный таймаут даже при ошибке
+      try {
+        client.setTimeout(originalTimeout);
+      } catch (e) {
+        // Игнорируем ошибки при восстановлении таймаута
+      }
+      console.error(`Error in _doWriteTagValue for tag ${tag.id}:`, error);
       throw error;
     }
   }
