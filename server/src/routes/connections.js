@@ -63,7 +63,7 @@ export default function connectionRoutes(prisma, modbusManager) {
       });
 
       // Если узел включен, запускаем соединение
-      if (node.enabled) {
+      if (modbusManager.isRunning && node.enabled) {
         await modbusManager.reloadConnection(node.id);
       }
 
@@ -92,8 +92,10 @@ export default function connectionRoutes(prisma, modbusManager) {
         }
       });
 
-      // Перезапускаем соединение
-      await modbusManager.reloadConnection(node.id);
+      if (modbusManager.isRunning && node.enabled) {
+        // Перезапускаем соединение
+        await modbusManager.reloadConnection(node.id);
+      }
 
       res.json(node);
     } catch (error) {

@@ -14,11 +14,11 @@ export default function tagRoutes(prisma, modbusManager) {
             }
           }
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: {createdAt: 'desc'}
       });
       res.json(tags);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -26,7 +26,7 @@ export default function tagRoutes(prisma, modbusManager) {
   router.get('/:id', async (req, res) => {
     try {
       const tag = await prisma.tag.findUnique({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         include: {
           device: {
             include: {
@@ -36,11 +36,11 @@ export default function tagRoutes(prisma, modbusManager) {
         }
       });
       if (!tag) {
-        return res.status(404).json({ error: 'Tag not found' });
+        return res.status(404).json({error: 'Tag not found'});
       }
       res.json(tag);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -80,17 +80,17 @@ export default function tagRoutes(prisma, modbusManager) {
 
       // Перезапускаем соединение узла
       const device = await prisma.device.findUnique({
-        where: { id: deviceId },
-        include: { connectionNode: true }
+        where: {id: deviceId},
+        include: {connectionNode: true}
       });
 
-      if (device) {
+      if (modbusManager.isRunning && device) {
         await modbusManager.reloadConnection(device.connectionNodeId);
       }
 
       res.json(tag);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -108,7 +108,7 @@ export default function tagRoutes(prisma, modbusManager) {
       } = req.body;
 
       const tag = await prisma.tag.findUnique({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         include: {
           device: {
             include: {
@@ -119,11 +119,11 @@ export default function tagRoutes(prisma, modbusManager) {
       });
 
       if (!tag) {
-        return res.status(404).json({ error: 'Tag not found' });
+        return res.status(404).json({error: 'Tag not found'});
       }
 
       const updatedTag = await prisma.tag.update({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         data: {
           name,
           address,
@@ -142,12 +142,14 @@ export default function tagRoutes(prisma, modbusManager) {
         }
       });
 
-      // Перезапускаем соединение узла
-      await modbusManager.reloadConnection(tag.device.connectionNodeId);
+      if (modbusManager.isRunning) {
+        // Перезапускаем соединение узла
+        await modbusManager.reloadConnection(tag.device.connectionNodeId);
+      }
 
       res.json(updatedTag);
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 
@@ -155,7 +157,7 @@ export default function tagRoutes(prisma, modbusManager) {
   router.delete('/:id', async (req, res) => {
     try {
       const tag = await prisma.tag.findUnique({
-        where: { id: req.params.id },
+        where: {id: req.params.id},
         include: {
           device: {
             include: {
@@ -166,21 +168,23 @@ export default function tagRoutes(prisma, modbusManager) {
       });
 
       if (!tag) {
-        return res.status(404).json({ error: 'Tag not found' });
+        return res.status(404).json({error: 'Tag not found'});
       }
 
       const connectionNodeId = tag.device.connectionNodeId;
 
       await prisma.tag.delete({
-        where: { id: req.params.id }
+        where: {id: req.params.id}
       });
 
-      // Перезапускаем соединение узла
-      await modbusManager.reloadConnection(connectionNodeId);
+      if (modbusManager.isRunning) {
+        // Перезапускаем соединение узла
+        await modbusManager.reloadConnection(connectionNodeId);
+      }
 
-      res.json({ success: true });
+      res.json({success: true});
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({error: error.message});
     }
   });
 

@@ -58,8 +58,10 @@ export default function deviceRoutes(prisma, modbusManager) {
         }
       });
 
-      // Перезапускаем соединение узла
-      await modbusManager.reloadConnection(connectionNodeId);
+      if (modbusManager.isRunning) {
+        // Перезапускаем соединение узла
+        await modbusManager.reloadConnection(connectionNodeId);
+      }
 
       res.json(device);
     } catch (error) {
@@ -96,8 +98,10 @@ export default function deviceRoutes(prisma, modbusManager) {
         }
       });
 
-      // Перезапускаем соединение узла
-      await modbusManager.reloadConnection(device.connectionNodeId);
+      if (modbusManager.isRunning) {
+        // Перезапускаем соединение узла
+        await modbusManager.reloadConnection(device.connectionNodeId);
+      }
 
       res.json(updatedDevice);
     } catch (error) {
