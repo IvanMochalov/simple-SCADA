@@ -23,6 +23,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined
 } from '@ant-design/icons';
+import {isNumeric} from "../utils/index.js";
 
 const {Title, Text} = Typography;
 
@@ -68,13 +69,12 @@ export default function RealTimeView() {
   }
 
   // Форматирует значение тега для отображения
-  const formatTagValue = (value, tag) => {
+  const formatTagValue = (value) => {
     if (value === null || value === undefined) {
       return '—'
     }
-
     // Если значение - число, форматируем его
-    if (typeof value === 'number') {
+    if (isNumeric(value)) {
       // Если число целое - показываем без десятичной части
       // Если дробное - ограничиваем до 2 знаков после запятой
       return value % 1 === 0 ? value.toString() : Number(value).toFixed(2)
@@ -219,7 +219,7 @@ export default function RealTimeView() {
     return tagValue ? (
       <>
         <div className="tag-value">
-          {formatTagValue(tagValue.value, tag)}
+          {formatTagValue(tagValue.value)}
         </div>
         {tagValue.error && (
           <Text type="danger" style={{fontSize: '12px'}}>

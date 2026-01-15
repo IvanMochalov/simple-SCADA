@@ -18,6 +18,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import {useNotification} from "../context/NotificationContext.jsx";
+import {isNumeric} from "../utils/index.js";
 
 const {Title, Text} = Typography;
 
@@ -30,7 +31,7 @@ export default function HistoryView() {
   const [filterLevel, setFilterLevel] = useState('system') // 'system', 'node', 'device'
   const [selectedNodeId, setSelectedNodeId] = useState("")
   const [selectedDeviceId, setSelectedDeviceId] = useState("")
-  
+
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -146,13 +147,12 @@ export default function HistoryView() {
   };
 
   // Форматирует значение тега для отображения
-  const formatTagValue = (value, tag) => {
+  const formatTagValue = (value) => {
     if (value === null || value === undefined) {
       return '—'
     }
-
     // Если значение - число, форматируем его
-    if (typeof value === 'number') {
+    if (isNumeric(value)) {
       // Если число целое - показываем без десятичной части
       // Если дробное - ограничиваем до 2 знаков после запятой
       return value % 1 === 0 ? value.toString() : Number(value).toFixed(2)
@@ -184,15 +184,15 @@ export default function HistoryView() {
       transformedData.tags.forEach(tag => {
         const tagKey = tag.id || `${tag.deviceId}_${tag.tagId}`;
         const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
-        
+
         baseColumns.push({
           title: displayName,
           dataIndex: `tag_${tagKey}`,
           key: `tag_${tagKey}`,
           width: 150,
           render: (value) => {
-            const formattedValue = formatTagValue(value, tag);
-            
+            const formattedValue = formatTagValue(value);
+
             return (
               <span className="value-cell" style={{
                 color: value !== null && value !== undefined ? '#1890ff' : '#999',
@@ -393,7 +393,7 @@ export default function HistoryView() {
               <Form.Item
                 label="Начало"
               >
-                <Space style={{width: '100%'}} direction="vertical" size="small">
+                <Space style={{width: '100%'}} orientation="vertical" size="small">
                   <DatePicker
                     value={startDate}
                     onChange={handleStartDateTimeChange}
@@ -416,7 +416,7 @@ export default function HistoryView() {
               <Form.Item
                 label="Конец"
               >
-                <Space style={{width: '100%'}} direction="vertical" size="small">
+                <Space style={{width: '100%'}} orientation="vertical" size="small">
                   <DatePicker
                     value={endDate}
                     onChange={handleEndDateTimeChange}
