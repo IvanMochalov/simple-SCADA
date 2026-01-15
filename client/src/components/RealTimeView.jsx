@@ -228,8 +228,14 @@ export default function RealTimeView() {
                                     const tagValue = getTagValue(device.id, tag.id)
                                     return (
                                       <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
-                                        <Card size="small" className="tag-card">
-                                          <Space orientation="vertical" style={{width: '100%', textAlign: 'center'}}>
+                                        <Card size="small" className="tag-card"
+                                              styles={{body: {height: "100%"}, root: {height: "100%"}}}>
+                                          <Space orientation="vertical" style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            textAlign: 'center',
+                                            justifyContent: "space-between"
+                                          }}>
                                             <div>
                                               <Space>
                                                 <Text strong>{tag.name}</Text>
