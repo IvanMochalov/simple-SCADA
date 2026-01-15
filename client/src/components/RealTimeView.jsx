@@ -75,9 +75,9 @@ export default function RealTimeView() {
 
     // Проверяем, является ли значение float (число с десятичной частью)
     // или тип данных тега указывает на float
-    const isFloat = tag?.serverDataType === 'float' || 
-                    tag?.deviceDataType === 'float' ||
-                    (typeof value === 'number' && value % 1 !== 0)
+    const isFloat = tag?.serverDataType === 'float' ||
+      tag?.deviceDataType === 'float' ||
+      (typeof value === 'number' && value % 1 !== 0)
 
     if (isFloat) {
       // Ограничиваем до 3 знаков после запятой для float
@@ -308,17 +308,13 @@ export default function RealTimeView() {
                         color={node.enabled ? 'success' : 'default'}
                         icon={node.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
                       >
-                        {node.enabled ? 'Включен' : 'Не включен'}
+                        {node.enabled ? 'Включен в работу' : 'Не включен в работу'}
                       </Tag>
-                      {node.connectionStatus && (
+                      {isModbusRunning && node.connectionStatus && (
                         <Tag
-                          color={
-                            node.connectionStatus === 'connected' ? 'success' :
-                            node.connectionStatus === 'error' ? 'error' : 'default'
-                          }
+                          color={node.connectionStatus === 'connected' ? 'success' : 'error'}
                         >
-                          {node.connectionStatus === 'connected' ? 'Подключен' :
-                           node.connectionStatus === 'error' ? 'Ошибка подключения' : 'Отключен'}
+                          {node.connectionStatus === 'connected' ? 'Соединение установлено' : 'Ошибка соединения'}
                         </Tag>
                       )}
                     </Space>
@@ -344,7 +340,7 @@ export default function RealTimeView() {
                                       color={device.enabled ? 'success' : 'default'}
                                       icon={device.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
                                     >
-                                      {device.enabled ? 'Включен' : 'Не включен'}
+                                      {device.enabled ? 'Включен в работу' : 'Не включен'}
                                     </Tag>
                                   </Space>
                                   {device.enabled && (
