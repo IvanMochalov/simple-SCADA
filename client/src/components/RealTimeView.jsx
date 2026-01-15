@@ -81,12 +81,9 @@ export default function RealTimeView() {
     try {
       if (isModbusRunning) {
         await api.stopModbus()
-        notification.warning('Modbus Manager остановлен');
       } else {
         await api.startModbus()
-        notification.success('Modbus Manager запущен');
       }
-      // Состояние обновится автоматически через WebSocket
     } catch (error) {
       console.error('Error toggling Modbus Manager:', error)
       notification.error('Ошибка при управлении Modbus Manager', error.response?.data?.error || "")

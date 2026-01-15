@@ -124,7 +124,7 @@ export class ModbusManager {
       console.error(`Error starting connection for node ${node.name}:`, error);
 
       // Обрабатываем специфичные ошибки
-      const message = {title: error.message, description: `Проверьте подключение ${node.name}}`};
+      const message = {title: error.message, description: `Проверьте подключение ${node.name}`};
 
       // Отправляем сообщение об ошибке на клиент
       this.broadcastMessage(message, 'error');
