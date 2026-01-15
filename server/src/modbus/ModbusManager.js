@@ -133,6 +133,7 @@ export class ModbusManager {
       // Обрабатываем специфичные ошибки
       const message = {title: error.message, description: textDescription};
 
+      await this.stopConnection(node.id);
       // Отправляем сообщение об ошибке на клиент
       this.broadcastMessage(message, 'error');
     } finally {
