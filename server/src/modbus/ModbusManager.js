@@ -570,7 +570,7 @@ export class ModbusManager {
           // Для float нужно записать 2 регистра
           if (tag.deviceDataType === 'float' || tag.serverDataType === 'float') {
             const [highWord, lowWord] = this.convertFloatToRegisters(writeValue);
-            await client.writeMultipleRegisters(tag.address, [highWord, lowWord]);
+            await client.writeRegisters(tag.address, [highWord, lowWord]);
           } else {
             // Для целых чисел записываем одно значение
             // Преобразуем int32 в int16 если нужно
@@ -580,13 +580,13 @@ export class ModbusManager {
               if (registerValue > 32767) registerValue = 32767;
               if (registerValue < -32768) registerValue = -32768;
             }
-            await client.writeSingleRegister(tag.address, registerValue);
+            await client.writeRegister(tag.address, registerValue);
           }
           break;
 
         case 'COIL':
           // Для COIL записываем boolean значение
-          await client.writeSingleCoil(tag.address, writeValue !== 0 && writeValue !== false);
+          await client.writeCoil(tag.address, writeValue !== 0 && writeValue !== false);
           break;
 
         case 'INPUT_REGISTER':
