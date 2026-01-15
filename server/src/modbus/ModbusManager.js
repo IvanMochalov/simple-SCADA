@@ -34,7 +34,6 @@ export class ModbusManager {
 
     for (const node of nodes) {
       await this.startConnection(node);
-      this.broadcastMessage({title: "Modbus manager запущен"}, 'success');
     }
 
     // Запускаем сбор исторических данных каждую минуту
@@ -130,9 +129,8 @@ export class ModbusManager {
       } else {
         textDescription = `Проверьте подключение ${node.name}: ${node.comPort}.`;
       }
-      // Обрабатываем специфичные ошибки
 
-      await this.stopConnection(node.id);
+      await this.stop();
       throw new Error(error.message, {details: textDescription});
       // const message = {title: error.message, description: textDescription};
       // this.broadcastMessage(message, 'error');
