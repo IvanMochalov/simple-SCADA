@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo} from 'react'
+import React, {useState, useEffect, useMemo, useCallback} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './HistoryView.css'
 import {api} from "../services/api.js";
@@ -15,10 +15,23 @@ import {
   Typography,
   Empty,
   Form, Alert,
+  Checkbox,
+  Drawer,
 } from 'antd';
+import {FilterOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {useNotification} from "../context/NotificationContext.jsx";
 import {isNumeric} from "../utils/index.js";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 
 const {Title, Text} = Typography;
 
@@ -34,6 +47,8 @@ export default function HistoryView() {
 
   const [history, setHistory] = useState([])
   const [loading, setLoading] = useState(false)
+  const [selectedTagsForChart, setSelectedTagsForChart] = useState([]) // Массив tagId для отображения на графике
+  const [filterDrawerOpen, setFilterDrawerOpen] = useState(false) // Состояние боковой панели фильтров
 
   // Преобразуем историю в табличный формат
   const transformedData = useMemo(() => {
@@ -68,6 +83,50 @@ export default function HistoryView() {
     };
   }, [history]);
 
+  // Преобразуем данные для графика
+  const chartData = useMemo(() => {
+    if (!history || !history.data || history.data.length === 0) {
+      return [];
+    }
+
+    const tags = history.tags || [];
+    const selectedTags = selectedTagsForChart.length > 0
+      ? tags.filter(tag => selectedTagsForChart.includes(tag.id))
+      : tags; // Если ничего не выбрано, показываем все теги
+
+    if (selectedTags.length === 0) {
+      return [];
+    }
+
+    return history.data.map(row => {
+      const chartPoint = {
+        time: new Date(row.timestamp).toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }),
+        timestamp: row.timestamp
+      };
+
+      // Добавляем значения выбранных тегов
+      selectedTags.forEach(tag => {
+        const tagKey = tag.id || `${tag.deviceId}_${tag.tagId}`;
+        const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
+
+        if (row.tags && row.tags[tagKey] && row.tags[tagKey].value !== null && row.tags[tagKey].value !== undefined) {
+          const value = row.tags[tagKey].value;
+          chartPoint[displayName] = isNumeric(value) ? Number(value) : value;
+        } else {
+          chartPoint[displayName] = null;
+        }
+      });
+
+      return chartPoint;
+    });
+  }, [history, selectedTagsForChart]);
+
   // Получаем список узлов
   const allNodes = useMemo(() => {
     return state?.nodes || [];
@@ -89,7 +148,9 @@ export default function HistoryView() {
     return dayjs();
   });
 
-  const loadHistory = async () => {
+  const [hasInitialLoad, setHasInitialLoad] = useState(false); // Флаг для отслеживания начальной загрузки
+
+  const loadHistory = async (silent = false) => {
     setLoading(true)
     try {
       let response;
@@ -103,15 +164,21 @@ export default function HistoryView() {
 
       if (filterLevel === 'system') {
         response = await api.getHistorySystem(params);
-        notification.success('История всей системы успешно загружена');
+        if (!silent) {
+          notification.success('История всей системы успешно загружена');
+        }
       } else if (filterLevel === 'node' && selectedNodeId) {
         response = await api.getHistoryNodeById(selectedNodeId, params);
         const node = allNodes.find(n => n.id === selectedNodeId);
-        notification.success(`История узла ${node?.name || selectedNodeId} успешно загружена`);
+        if (!silent) {
+          notification.success(`История узла ${node?.name || selectedNodeId} успешно загружена`);
+        }
       } else if (filterLevel === 'device' && selectedDeviceId) {
         response = await api.getHistoryDeviceById(selectedDeviceId, params);
         const device = devicesForNode.find(d => d.id === selectedDeviceId);
-        notification.success(`История устройства ${device?.name || selectedDeviceId} успешно загружена`);
+        if (!silent) {
+          notification.success(`История устройства ${device?.name || selectedDeviceId} успешно загружена`);
+        }
       } else {
         notification.error('Выберите необходимые фильтры');
         setLoading(false);
@@ -119,6 +186,12 @@ export default function HistoryView() {
       }
 
       setHistory(response.data)
+      // Автоматически выбираем все теги для графика при загрузке
+      if (response.data && response.data.tags && response.data.tags.length > 0) {
+        setSelectedTagsForChart(response.data.tags.map(tag => tag.id))
+      } else {
+        setSelectedTagsForChart([])
+      }
     } catch (error) {
       console.error('Error loading history:', error)
       notification.error('Ошибка загрузки истории', error.response?.data?.error || error.message || "")
@@ -126,6 +199,20 @@ export default function HistoryView() {
       setLoading(false)
     }
   }
+
+  // Автоматическая загрузка данных при открытии страницы
+  useEffect(() => {
+    // Загружаем данные только если:
+    // 1. Есть подключение к WebSocket
+    // 2. Есть узлы связи
+    // 3. Еще не выполнялась начальная загрузка
+    // 4. Не идет загрузка
+    if (isConnected && state?.nodes && state.nodes.length > 0 && !hasInitialLoad && !loading) {
+      setHasInitialLoad(true);
+      loadHistory(true); // Автоматическая загрузка без уведомлений
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, state?.nodes]);
 
   // Обработчики изменения фильтров
   const handleLevelChange = (level) => {
@@ -287,16 +374,23 @@ export default function HistoryView() {
 
   return (
     <div className="history-view">
-      <Title level={2}>Исторические данные</Title>
+      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
+        <Title level={2} style={{margin: 0}}>Исторические данные</Title>
+        <Button
+          type="primary"
+          icon={<FilterOutlined/>}
+          onClick={() => setFilterDrawerOpen(true)}
+        >
+          Фильтры
+        </Button>
+      </div>
 
-      <Card
+      <Drawer
         title="Фильтры"
-        styles={{
-          root: {marginBottom: 24},
-          body: {
-            padding: '24px'
-          }
-        }}
+        placement="right"
+        onClose={() => setFilterDrawerOpen(false)}
+        open={filterDrawerOpen}
+        width={400}
       >
         <Form
           form={form}
@@ -389,7 +483,7 @@ export default function HistoryView() {
               </>
             )}
 
-            <Col xs={24} lg={filterLevel === 'system' ? 8 : filterLevel === 'node' ? 8 : 4}>
+            <Col xs={24}>
               <Form.Item
                 label="Начало"
               >
@@ -412,7 +506,7 @@ export default function HistoryView() {
               </Form.Item>
             </Col>
 
-            <Col xs={24} lg={filterLevel === 'system' ? 8 : filterLevel === 'node' ? 8 : 4}>
+            <Col xs={24}>
               <Form.Item
                 label="Конец"
               >
@@ -461,14 +555,18 @@ export default function HistoryView() {
               </Form.Item>
             </Col>
 
-            <Col xs={24} lg={filterLevel === 'system' ? 8 : filterLevel === 'node' ? 8 : 4}>
-              <Form.Item label=" ">
+            <Col xs={24}>
+              <Form.Item>
                 <Button
                   type="primary"
-                  onClick={loadHistory}
+                  onClick={() => {
+                    loadHistory();
+                    setFilterDrawerOpen(false);
+                  }}
                   disabled={!canLoad() || loading}
                   loading={loading}
-                  style={{width: '100%', marginTop: '30px'}}
+                  style={{width: '100%'}}
+                  block
                 >
                   Загрузить историю
                 </Button>
@@ -476,7 +574,38 @@ export default function HistoryView() {
             </Col>
           </Row>
         </Form>
-      </Card>
+      </Drawer>
+
+      {/* Начальное состояние - когда данные еще не загружены */}
+      {(!history || (history.data && history.data.length === 0 && !loading)) && (
+        <Card
+          title="Исторические данные"
+          styles={{
+            root: {marginBottom: 24},
+          }}
+        >
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <div style={{textAlign: 'center'}}>
+                <Text type="secondary" style={{fontSize: 16, display: 'block', marginBottom: 16}}>
+                  {!history
+                    ? "Выберите период и нажмите 'Загрузить историю' для отображения данных"
+                    : "Нет данных за выбранный период. Попробуйте выбрать другой период."}
+                </Text>
+                <Button
+                  type="primary"
+                  icon={<FilterOutlined/>}
+                  onClick={() => setFilterDrawerOpen(true)}
+                  size="large"
+                >
+                  Открыть фильтры
+                </Button>
+              </div>
+            }
+          />
+        </Card>
+      )}
 
       {history && history.data && history.data.length > 0 && (
         <Card title="Исторические данные">
@@ -489,9 +618,9 @@ export default function HistoryView() {
               size="small"
               scroll={{x: 'max-content', y: 600}}
               pagination={{
-                defaultPageSize: 50,
+                defaultPageSize: 10,
                 showSizeChanger: true,
-                pageSizeOptions: ['20', '50', '100', '200'],
+                pageSizeOptions: ['10', '20', '50', '100', '200'],
                 showTotal: (total, range) =>
                   `${range[0]}-${range[1]} из ${total} записей`,
               }}
@@ -500,12 +629,99 @@ export default function HistoryView() {
         </Card>
       )}
 
-      {history && history.data && history.data.length === 0 && !loading && (
-        <Card title="Исторические данные">
-          <Empty
-            description="Нет данных за выбранный период"
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-          />
+
+      {history && history.data && history.data.length > 0 && transformedData.tags && transformedData.tags.length > 0 && (
+        <Card
+          title="График исторических данных"
+          styles={{
+            root: {marginTop: 24},
+          }}
+        >
+          <Row gutter={[16, 16]}>
+            <Col span={24}>
+              <Form.Item label="Выберите теги для отображения на графике">
+                <Checkbox.Group
+                  value={selectedTagsForChart}
+                  onChange={(checkedValues) => setSelectedTagsForChart(checkedValues)}
+                  style={{width: '100%'}}
+                >
+                  <Row gutter={[8, 8]}>
+                    {transformedData.tags.map(tag => {
+                      const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
+                      return (
+                        <Col key={tag.id} span={8}>
+                          <Checkbox value={tag.id}>{displayName}</Checkbox>
+                        </Col>
+                      );
+                    })}
+                  </Row>
+                </Checkbox.Group>
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              {chartData.length > 0 && selectedTagsForChart.length > 0 ? (
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart
+                    data={chartData}
+                    margin={{
+                      top: 5,
+                      right: 30,
+                      left: 20,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3"/>
+                    <XAxis
+                      dataKey="time"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis/>
+                    <Tooltip
+                      formatter={(value, name) => {
+                        if (value === null || value === undefined) return '—';
+                        return isNumeric(value)
+                          ? (value % 1 === 0 ? value.toString() : Number(value).toFixed(2))
+                          : value;
+                      }}
+                      labelFormatter={(label) => `Время: ${label}`}
+                    />
+                    <Legend/>
+                    {transformedData.tags
+                      .filter(tag => selectedTagsForChart.includes(tag.id))
+                      .map((tag, index) => {
+                        const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
+                        // Генерируем разные цвета для линий
+                        const colors = [
+                          '#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1',
+                          '#13c2c2', '#eb2f96', '#fa8c16', '#2f54eb', '#a0d911'
+                        ];
+                        const color = colors[index % colors.length];
+                        return (
+                          <Line
+                            key={tag.id}
+                            type="monotone"
+                            dataKey={displayName}
+                            stroke={color}
+                            strokeWidth={2}
+                            dot={{r: 3}}
+                            connectNulls={false}
+                            name={displayName}
+                          />
+                        );
+                      })}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <Empty
+                  description="Выберите теги для отображения на графике"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
+              )}
+            </Col>
+          </Row>
         </Card>
       )}
     </div>
