@@ -154,20 +154,6 @@ export default function ConnectionTree() {
     )
   }
 
-  if (!state || !state?.nodes || state?.nodes?.length === 0) {
-    return (
-      <Card className="history-view">
-        <Empty
-          description={
-            <Text type="secondary">
-              Нет узлов связи. Создайте узел связи в разделе "Конфигурация".
-            </Text>
-          }
-        />
-      </Card>
-    )
-  }
-
   return (
     <div style={{maxWidth: "1200px", margin: "0 auto", padding: "16px"}}>
       <Space orientation="vertical" style={{width: '100%'}} size="large">

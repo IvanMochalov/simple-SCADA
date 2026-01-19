@@ -272,13 +272,13 @@ export default function RealTimeView() {
 
   const renderTagContent = (device, tag, node) => {
     const tagValue = getTagValue(device.id, tag.id)
-    const canWrite = tag.accessType === 'ReadWrite' && 
-                     isModbusRunning && 
-                     node.connectionStatus === 'connected' && 
-                     device.enabled && 
-                     tag.enabled &&
-                     tagValue && 
-                     !tagValue.error
+    const canWrite = tag.accessType === 'ReadWrite' &&
+      isModbusRunning &&
+      node.connectionStatus === 'connected' &&
+      device.enabled &&
+      tag.enabled &&
+      tagValue &&
+      !tagValue.error
 
     return (
       <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
