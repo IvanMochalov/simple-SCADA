@@ -150,7 +150,9 @@ export class ModbusManager {
 
       const connection = {
         client,
-        devices: new Map()
+        devices: new Map(),
+        pollingQueue: [], // Очередь устройств для опроса
+        isPolling: false // Флаг, что идет опрос
       };
 
       // Запускаем опрос только для включенных устройств с тегами
@@ -166,20 +168,24 @@ export class ModbusManager {
         connection.devices.set(device.id, device);
       }
 
-      // Опрашиваем только включенные устройства с тегами
-      // На RS-485 шине устройства должны опрашиваться последовательно
-      // Добавляем задержку между запусками опроса устройств для избежания конфликтов
-      for (let i = 0; i < enabledDevices.length; i++) {
-        const device = enabledDevices[i];
-        // Задержка перед запуском опроса каждого устройства
-        // Первое устройство тоже получает задержку для стабилизации порта
-        if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 30));
-        } else {
-          // Дополнительная задержка для первого устройства после открытия порта
-          await new Promise(resolve => setTimeout(resolve, 20));
-        }
-        this.startDevicePolling(device, client);
+      // Запускаем единый интервал опроса для всех устройств узла
+      // Это гарантирует последовательный опрос устройств на RS-485 шине
+      if (enabledDevices.length > 0) {
+        // Используем минимальный интервал опроса среди всех устройств
+        const minPollInterval = Math.min(...enabledDevices.map(d => d.pollInterval || 1000));
+        
+        // Запускаем единый интервал для последовательного опроса всех устройств
+        const nodePollingInterval = setInterval(async () => {
+          await this.pollNodeDevices(node.id, connection);
+        }, minPollInterval);
+
+        // Сохраняем интервал для узла
+        this.pollingIntervals.set(node.id, nodePollingInterval);
+
+        // Делаем первый опрос с задержкой для стабилизации
+        setTimeout(async () => {
+          await this.pollNodeDevices(node.id, connection);
+        }, 200);
       }
 
       this.connections.set(node.id, connection);
@@ -218,7 +224,10 @@ export class ModbusManager {
     if (!connection) return;
 
     try {
-      // Останавливаем опрос всех устройств
+      // Останавливаем опрос узла (единый интервал для всех устройств)
+      this.stopNodePolling(nodeId);
+      
+      // Также останавливаем опрос отдельных устройств (для обратной совместимости)
       const deviceIds = Array.from(connection.devices.keys());
       for (const deviceId of deviceIds) {
         this.stopDevicePolling(deviceId);
@@ -250,29 +259,85 @@ export class ModbusManager {
     }
   }
 
+  // Последовательный опрос всех устройств узла
+  async pollNodeDevices(nodeId, connection) {
+    // Если уже идет опрос, пропускаем этот цикл
+    if (connection.isPolling) {
+      return;
+    }
+
+    // Проверяем, не идет ли запись в какое-либо устройство узла
+    // Если идет запись, пропускаем этот цикл опроса для предотвращения конфликтов на RS-485
+    const hasActiveWrite = Array.from(connection.devices.keys()).some(deviceId => 
+      this.deviceWriteLocks.has(deviceId)
+    );
+    if (hasActiveWrite) {
+      return;
+    }
+
+    connection.isPolling = true;
+
+    try {
+      // Получаем все включенные устройства узла
+      const devices = Array.from(connection.devices.values()).filter(device =>
+        device.enabled &&
+        device.tags &&
+        device.tags.length > 0 &&
+        device.tags.some(tag => tag.enabled)
+      );
+
+      // Опрашиваем устройства последовательно
+      for (let i = 0; i < devices.length; i++) {
+        const device = devices[i];
+        
+        // Задержка между опросами устройств для стабильности RS-485
+        // Небольшая задержка нужна для очистки буфера и предотвращения конфликтов
+        // При интервале 500 мс это критично для стабильности
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 50)); // Оптимизировано: 100 -> 50 мс
+        }
+
+        // Дополнительная проверка на запись (на случай, если запись началась во время опроса)
+        const writeLock = this.deviceWriteLocks.get(device.id);
+        if (writeLock) {
+          // Пропускаем устройство, если идет запись
+          continue;
+        }
+
+        // Опрашиваем устройство
+        await this.pollDevice(device, connection.client);
+      }
+    } catch (error) {
+      console.error(`Error polling node devices ${nodeId}:`, error);
+    } finally {
+      connection.isPolling = false;
+    }
+  }
+
   startDevicePolling(device, client) {
-    // Останавливаем предыдущий интервал, если есть
-    this.stopDevicePolling(device.id);
-
-    const interval = setInterval(async () => {
-      await this.pollDevice(device, client);
-    }, device.pollInterval);
-
-    this.pollingIntervals.set(device.id, interval);
-
-    // Делаем первый опрос с задержкой для стабильности
-    // Увеличена задержка для избежания таймаутов и CRC ошибок при первом подключении
-    // Это дает время на инициализацию устройства и очистку буфера
+    // Этот метод теперь используется только при переподключении устройства
+    // Основной опрос идет через pollNodeDevices
+    // Для обратной совместимости можно запустить единичный опрос
     setTimeout(async () => {
       await this.pollDevice(device, client);
-    }, 0);
+    }, 100);
   }
 
   stopDevicePolling(deviceId) {
+    // Останавливаем интервал для устройства (если используется старый подход)
     const interval = this.pollingIntervals.get(deviceId);
     if (interval) {
       clearInterval(interval);
       this.pollingIntervals.delete(deviceId);
+    }
+  }
+
+  stopNodePolling(nodeId) {
+    // Останавливаем интервал опроса для узла
+    const interval = this.pollingIntervals.get(nodeId);
+    if (interval) {
+      clearInterval(interval);
+      this.pollingIntervals.delete(nodeId);
     }
   }
 
@@ -328,9 +393,10 @@ export class ModbusManager {
           let value = null;
 
           // Задержка между чтениями регистров для стабильности RS-485
-          // Увеличена задержка для избежания CRC ошибок
+          // Небольшая задержка нужна для очистки буфера между запросами
+          // Это предотвращает CRC ошибки и таймауты
           if (device.tags.indexOf(tag) > 0) {
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise(resolve => setTimeout(resolve, 30)); // Уменьшено с 50 до 30 мс
           }
 
           switch (tag.registerType) {
@@ -578,12 +644,21 @@ export class ModbusManager {
       const client = connection.client;
       const device = tag.device;
 
-      // Создаем Promise для блокировки записи
-      const writePromise = this._doWriteTagValue(tag, device, client, value);
-      this.deviceWriteLocks.set(device.id, writePromise);
+      // КРИТИЧНО: Проверяем, не идет ли уже запись в это устройство
+      // Предотвращаем одновременные записи в одно устройство
+      if (this.deviceWriteLocks.has(device.id)) {
+        throw new Error('Запись в устройство уже выполняется. Дождитесь завершения предыдущей операции.');
+      }
+
+      // Устанавливаем временную блокировку СРАЗУ после проверки
+      // Это предотвращает race condition, когда две записи проходят проверку одновременно
+      const tempLockPromise = Promise.resolve(); // Временный Promise для блокировки
+      this.deviceWriteLocks.set(device.id, tempLockPromise);
+
+      let writePromise = null; // Объявляем вне try для доступа в catch/finally
 
       try {
-        // Ждем завершения текущего опроса, если он идет
+        // Ждем завершения текущего опроса устройства, если он идет
         const pollingLock = this.devicePollingLocks.get(device.id);
         if (pollingLock) {
           try {
@@ -591,24 +666,47 @@ export class ModbusManager {
           } catch (error) {
             // Игнорируем ошибки опроса
           }
-          // Небольшая задержка после завершения опроса
-          await new Promise(resolve => setTimeout(resolve, 100));
         }
 
-        // Приостанавливаем опрос устройства на время записи
-        this.stopDevicePolling(device.id);
+        // КРИТИЧНО: Ждем завершения опроса узла, если он идет
+        // На RS-485 нельзя писать во время опроса других устройств на той же шине
+        // Это предотвращает конфликты и таймауты
+        let waitCount = 0;
+        const maxWait = 20; // Максимум 20 попыток (1 секунда при интервале 50 мс)
+        while (connection.isPolling && waitCount < maxWait) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          waitCount++;
+        }
+
+        // Дополнительная задержка для очистки буфера RS-485 после опроса
+        // Это критично для стабильности при быстрых интервалах (500 мс и выше)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // ТЕПЕРЬ создаем Promise для реальной записи и заменяем временную блокировку
+        // Это гарантирует, что опрос узла не начнется во время записи
+        writePromise = this._doWriteTagValue(tag, device, client, value);
+        this.deviceWriteLocks.set(device.id, writePromise);
 
         // Выполняем запись
         return await writePromise;
+      } catch (error) {
+        // Если произошла ошибка до начала записи, удаляем временную блокировку
+        const currentLock = this.deviceWriteLocks.get(device.id);
+        if (currentLock === tempLockPromise || currentLock === writePromise) {
+          this.deviceWriteLocks.delete(device.id);
+        }
+        throw error;
       } finally {
-        // Удаляем блокировку записи
-        if (this.deviceWriteLocks.get(device.id) === writePromise) {
+        // Удаляем блокировку записи (временную или реальную)
+        const currentLock = this.deviceWriteLocks.get(device.id);
+        if (currentLock === tempLockPromise || (writePromise && currentLock === writePromise)) {
           this.deviceWriteLocks.delete(device.id);
         }
 
-        // Возобновляем опрос устройства после записи
-        // Небольшая задержка перед возобновлением опроса
-        await new Promise(resolve => setTimeout(resolve, 200));
+        // Задержка после записи для стабильности RS-485
+        // Даем время на обработку ответа устройства и очистку буфера
+        // Это важно для предотвращения конфликтов при следующем цикле опроса
+        await new Promise(resolve => setTimeout(resolve, 150)); // Оптимизировано: 200 -> 150 мс
 
         // Проверяем, что устройство все еще включено и соединение активно
         const updatedDevice = await this.prisma.device.findUnique({
@@ -622,8 +720,11 @@ export class ModbusManager {
         });
 
         if (updatedDevice && updatedDevice.enabled && connection.client &&
-          updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
-          this.startDevicePolling(updatedDevice, connection.client);
+            updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
+          // Обновляем устройство в connection.devices
+          // Опрос будет выполняться через pollNodeDevices автоматически
+          connection.devices.set(device.id, updatedDevice);
+          // Не нужно вызывать startDevicePolling, так как опрос идет через единый интервал узла
         }
       }
     } catch (error) {
@@ -1030,14 +1131,9 @@ export class ModbusManager {
 
       if (updatedDevice.enabled && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
         // Обновляем устройство в connection.devices
+        // Опрос будет выполняться через pollNodeDevices автоматически
         connection.devices.set(deviceId, updatedDevice);
-
-        // Задержка перед запуском опроса для стабильности RS-485
-        // Даем время на очистку буфера и инициализацию устройства
-        await new Promise(resolve => setTimeout(resolve, 300));
-
-        // Запускаем опрос устройства
-        this.startDevicePolling(updatedDevice, connection.client);
+        // Не нужно вызывать startDevicePolling, так как опрос идет через единый интервал узла
       } else {
         console.log(`Device ${displayDeviceName} is disabled or has no enabled tags`);
       }

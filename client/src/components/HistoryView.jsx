@@ -390,14 +390,14 @@ export default function HistoryView() {
         placement="right"
         onClose={() => setFilterDrawerOpen(false)}
         open={filterDrawerOpen}
-        width={400}
+        size={"default"}
       >
         <Form
           form={form}
           layout="vertical"
         >
           <Row gutter={[16, 16]}>
-            <Col xs={24} lg={8}>
+            <Col xs={24}>
               <Form.Item
                 label="Уровень"
               >
@@ -415,7 +415,7 @@ export default function HistoryView() {
             </Col>
 
             {filterLevel === 'node' && (
-              <Col xs={24} lg={8}>
+              <Col xs={24}>
                 <Form.Item
                   label="Узел связи"
                   rules={[{required: true, message: 'Выберите узел связи'}]}
@@ -439,7 +439,7 @@ export default function HistoryView() {
 
             {filterLevel === 'device' && (
               <>
-                <Col xs={24} lg={8}>
+                <Col xs={24}>
                   <Form.Item
                     label="Узел связи"
                     rules={[{required: true, message: 'Выберите узел связи'}]}
@@ -459,7 +459,7 @@ export default function HistoryView() {
                     />
                   </Form.Item>
                 </Col>
-                <Col xs={24} lg={8}>
+                <Col xs={24}>
                   <Form.Item
                     label="Устройство"
                     rules={[{required: true, message: 'Выберите устройство'}]}
@@ -608,7 +608,7 @@ export default function HistoryView() {
       )}
 
       {history && history.data && history.data.length > 0 && (
-        <Card title="Исторические данные">
+        <Card title="Таблица исторических данные">
           <div style={{overflowX: 'auto'}}>
             <Table
               loading={loading}

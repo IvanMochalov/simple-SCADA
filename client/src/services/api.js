@@ -1,7 +1,7 @@
 import axios from "axios";
 
-export const HOST = '192.168.3.25';
-// export const HOST = 'localhost';
+// export const HOST = '192.168.3.25';
+export const HOST = 'localhost';
 export const BASE = `http://${HOST}:3001`;
 export const API_BASE = `${BASE}/api`;
 export const WS_BASE = `ws://${HOST}:3001`;
