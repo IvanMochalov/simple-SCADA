@@ -621,8 +621,8 @@ export class ModbusManager {
           }
         });
 
-        if (updatedDevice && updatedDevice.enabled && connection.client && 
-            updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
+        if (updatedDevice && updatedDevice.enabled && connection.client &&
+          updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
           this.startDevicePolling(updatedDevice, connection.client);
         }
       }
@@ -707,12 +707,11 @@ export class ModbusManager {
             if (registerValue < 0) registerValue = 0;
             if (registerValue > 65535) registerValue = 65535;
 
-            console.log(`Writing value to tag ${tag.name} (${tag.id}): address=${tag.address}, originalValue=${writeValue}, registerValue=${registerValue} (uint16), deviceDataType=${tag.deviceDataType}, serverDataType=${tag.serverDataType}, device=${device.name} (address ${device.address})`);
-
             // Некоторые устройства не поддерживают функцию 6 (Write Single Register)
             // и требуют функцию 16 (Write Multiple Registers) даже для одного регистра
             // Пробуем сначала функцию 16
             try {
+              console.log(`Writing value to tag ${tag.name} (${tag.id}): address=${tag.address}, originalValue=${writeValue}, registerValue=${registerValue} (uint16), deviceDataType=${tag.deviceDataType}, serverDataType=${tag.serverDataType}, device=${device.name} (address ${device.address}) width 16 function`);
               await client.writeRegisters(tag.address, [registerValue]);
             } catch (error) {
               // Если функция 16 не поддерживается, пробуем функцию 6
