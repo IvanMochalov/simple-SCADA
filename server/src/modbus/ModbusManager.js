@@ -1,4 +1,5 @@
 import ModbusRTU from 'modbus-serial';
+import {isIterable} from "../utils/index.js";
 
 export class ModbusManager {
   constructor(prisma, wss) {
@@ -47,12 +48,12 @@ export class ModbusManager {
 
     // Запускаем сбор исторических данных каждую минуту
     this.historyInterval = setInterval(() => {
-      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node => 
-        node.enabled && 
-        node.devices && 
-        node.devices.some(device => 
-          device.enabled && 
-          device.tags && 
+      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node =>
+        node.enabled &&
+        node.devices &&
+        node.devices.some(device =>
+          device.enabled &&
+          device.tags &&
           device.tags.some(tag => tag.enabled)
         )
       );
@@ -153,14 +154,15 @@ export class ModbusManager {
       };
 
       // Запускаем опрос только для включенных устройств с тегами
-      const enabledDevices = node.devices.filter(device => 
-        device.enabled && 
-        device.tags && 
-        device.tags.length > 0
+      const enabledDevices = node.devices.filter(device =>
+        device.enabled &&
+        device.tags &&
+        device.tags.length > 0 &&
+        device.tags.some(tag => tag.enabled)
       );
 
       // Сохраняем все устройства в connection
-      for (const device of node.devices) {
+      for (const device of enabledDevices) {
         connection.devices.set(device.id, device);
       }
 
@@ -172,10 +174,10 @@ export class ModbusManager {
         // Задержка перед запуском опроса каждого устройства
         // Первое устройство тоже получает задержку для стабилизации порта
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 30));
         } else {
           // Дополнительная задержка для первого устройства после открытия порта
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 20));
         }
         this.startDevicePolling(device, client);
       }
@@ -263,7 +265,7 @@ export class ModbusManager {
     // Это дает время на инициализацию устройства и очистку буфера
     setTimeout(async () => {
       await this.pollDevice(device, client);
-    }, 500);
+    }, 0);
   }
 
   stopDevicePolling(deviceId) {
@@ -293,7 +295,7 @@ export class ModbusManager {
     // Сохраняем Promise текущего опроса для синхронизации
     const pollingPromise = this._doPollDevice(device, client);
     this.devicePollingLocks.set(device.id, pollingPromise);
-    
+
     try {
       await pollingPromise;
     } finally {
@@ -306,17 +308,8 @@ export class ModbusManager {
 
   async _doPollDevice(device, client) {
     try {
-      // Загружаем актуальные теги устройства
-      const deviceWithTags = await this.prisma.device.findUnique({
-        where: {id: device.id},
-        include: {
-          tags: {
-            where: {enabled: true}
-          }
-        }
-      });
-
-      if (!deviceWithTags || !deviceWithTags.enabled || deviceWithTags.tags.length === 0) {
+      // Проверяем, что устройство существует, включено и имеет итерируемые теги
+      if (!device || !device.enabled || !device.tags || !isIterable(device.tags)) {
         this.stopDevicePolling(device.id);
         return;
       }
@@ -330,13 +323,13 @@ export class ModbusManager {
 
       // Опрашиваем теги последовательно с задержкой
       // На RS-485 важно давать время между запросами
-      for (const tag of deviceWithTags.tags) {
+      for (const tag of device.tags) {
         try {
           let value = null;
 
           // Задержка между чтениями регистров для стабильности RS-485
           // Увеличена задержка для избежания CRC ошибок
-          if (deviceWithTags.tags.indexOf(tag) > 0) {
+          if (device.tags.indexOf(tag) > 0) {
             await new Promise(resolve => setTimeout(resolve, 50));
           }
 
@@ -348,7 +341,7 @@ export class ModbusManager {
                 tag.address,
                 holdingRegistersToRead
               );
-              
+
               if (holdingRegistersToRead === 2) {
                 // Конвертируем два регистра в float
                 value = this.convertRegistersToFloat(holdingResult.data[0], holdingResult.data[1]);
@@ -364,7 +357,7 @@ export class ModbusManager {
                 tag.address,
                 inputRegistersToRead
               );
-              
+
               if (inputRegistersToRead === 2) {
                 // Конвертируем два регистра в float
                 value = this.convertRegistersToFloat(inputResult.data[0], inputResult.data[1]);
@@ -489,7 +482,7 @@ export class ModbusManager {
    * Конвертирует два Modbus регистра (16 бит каждый) в IEEE 754 float (32 бита)
    * Используется порядок байтов: старший регистр (high word) -> младший регистр (low word)
    * Это стандартный порядок для большинства Modbus устройств (big-endian)
-   * 
+   *
    * @param {number} highWord - Старший регистр (первые 16 бит)
    * @param {number} lowWord - Младший регистр (последние 16 бит)
    * @returns {number} Float значение
@@ -500,10 +493,10 @@ export class ModbusManager {
     // Порядок байтов: Big-endian (ABCD)
     // A = старший байт highWord, B = младший байт highWord
     // C = старший байт lowWord, D = младший байт lowWord
-    
+
     // Создаем буфер для 32-битного float
     const buffer = Buffer.allocUnsafe(4);
-    
+
     // Записываем байты в правильном порядке (big-endian)
     // Старший байт highWord -> buffer[0]
     // Младший байт highWord -> buffer[1]
@@ -511,7 +504,7 @@ export class ModbusManager {
     // Младший байт lowWord -> buffer[3]
     buffer.writeUInt16BE(highWord, 0);
     buffer.writeUInt16BE(lowWord, 2);
-    
+
     // Читаем как IEEE 754 float (big-endian)
     return buffer.readFloatBE(0);
   }
@@ -519,27 +512,27 @@ export class ModbusManager {
   /**
    * Конвертирует IEEE 754 float (32 бита) в два Modbus регистра (16 бит каждый)
    * Обратная операция для convertRegistersToFloat
-   * 
+   *
    * @param {number} floatValue - Float значение
    * @returns {Array<number>} [highWord, lowWord] - два 16-битных регистра
    */
   convertFloatToRegisters(floatValue) {
     // Создаем буфер для 32-битного float
     const buffer = Buffer.allocUnsafe(4);
-    
+
     // Записываем float как IEEE 754 (big-endian)
     buffer.writeFloatBE(floatValue, 0);
-    
+
     // Читаем два 16-битных регистра
     const highWord = buffer.readUInt16BE(0);
     const lowWord = buffer.readUInt16BE(2);
-    
+
     return [highWord, lowWord];
   }
 
   /**
    * Записывает значение в тег устройства
-   * 
+   *
    * @param {string} tagId - ID тега
    * @param {number|string} value - Значение для записи
    * @returns {Promise<{success: boolean, value: any}>}
@@ -606,37 +599,39 @@ export class ModbusManager {
         this.stopDevicePolling(device.id);
 
         // Выполняем запись
-        const result = await writePromise;
-        
-        return result;
+        return await writePromise;
       } finally {
         // Удаляем блокировку записи
         if (this.deviceWriteLocks.get(device.id) === writePromise) {
           this.deviceWriteLocks.delete(device.id);
         }
-        
+
         // Возобновляем опрос устройства после записи
         // Небольшая задержка перед возобновлением опроса
         await new Promise(resolve => setTimeout(resolve, 200));
-        
+
         // Проверяем, что устройство все еще включено и соединение активно
         const updatedDevice = await this.prisma.device.findUnique({
           where: {id: device.id},
           include: {
-            connectionNode: true
+            connectionNode: true,
+            tags: {
+              where: {enabled: true}
+            }
           }
         });
-        
-        if (updatedDevice && updatedDevice.enabled && connection.client) {
+
+        if (updatedDevice && updatedDevice.enabled && connection.client && 
+            updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
           this.startDevicePolling(updatedDevice, connection.client);
         }
       }
     } catch (error) {
       console.error(`Error writing tag value ${tagId}:`, error);
-      
+
       // Формируем более информативное сообщение об ошибке
       let errorMessage = error.message;
-      
+
       if (error.modbusCode === 1) {
         errorMessage = `Устройство не поддерживает запись в адрес ${tag?.address || 'неизвестен'}. Проверьте, что адрес регистра правильный и устройство поддерживает запись в этот адрес.`;
       } else if (error.modbusCode === 2) {
@@ -646,7 +641,7 @@ export class ModbusManager {
       } else if (error.name === 'TransactionTimedOutError') {
         errorMessage = `Таймаут при записи значения. Устройство не ответило в течение установленного времени. Попробуйте переподключить устройство.`;
       }
-      
+
       // Создаем новую ошибку с более информативным сообщением
       const enhancedError = new Error(errorMessage);
       enhancedError.originalError = error;
@@ -660,11 +655,11 @@ export class ModbusManager {
     // Запись может занимать больше времени, чем чтение
     const originalTimeout = client.getTimeout ? client.getTimeout() : (device.responseTimeout || 1000);
     const writeTimeout = Math.max(originalTimeout * 2, 3000); // Увеличиваем в 2 раза, минимум 3 секунды
-    
+
     try {
       // Устанавливаем unit ID для устройства
       client.setID(device.address);
-      
+
       // Устанавливаем увеличенный таймаут для записи
       client.setTimeout(writeTimeout);
 
@@ -698,7 +693,7 @@ export class ModbusManager {
               // Ограничиваем до диапазона int16
               if (registerValue > 32767) registerValue = 32767;
               if (registerValue < -32768) registerValue = -32768;
-              
+
               // Преобразуем отрицательные числа в формат uint16 для Modbus
               // Modbus регистры хранят значения как uint16 (0-65535)
               // Отрицательные int16 значения представлены как 32768-65535
@@ -706,14 +701,14 @@ export class ModbusManager {
                 registerValue = registerValue + 65536;
               }
             }
-            
+
             // Убеждаемся, что значение в диапазоне uint16
             registerValue = Math.round(registerValue);
             if (registerValue < 0) registerValue = 0;
             if (registerValue > 65535) registerValue = 65535;
-            
+
             console.log(`Writing value to tag ${tag.name} (${tag.id}): address=${tag.address}, originalValue=${writeValue}, registerValue=${registerValue} (uint16), deviceDataType=${tag.deviceDataType}, serverDataType=${tag.serverDataType}, device=${device.name} (address ${device.address})`);
-            
+
             // Некоторые устройства не поддерживают функцию 6 (Write Single Register)
             // и требуют функцию 16 (Write Multiple Registers) даже для одного регистра
             // Пробуем сначала функцию 16
@@ -827,6 +822,9 @@ export class ModbusManager {
         const deviceCache = this.tagValuesCache.get(device.id);
         if (!deviceCache) continue;
 
+        // Пропускаем устройства без тегов или с неитерируемыми тегами
+        if (!device.tags || !isIterable(device.tags)) continue;
+
         // Сохраняем последние значения всех тегов устройства
         for (const tag of device.tags) {
           const tagData = deviceCache.get(tag.id);
@@ -878,8 +876,8 @@ export class ModbusManager {
 
   broadcastMessage(messageData, messageType = 'info') {
     // Поддерживаем как строку, так и объект с title и description
-    const text = typeof messageData === 'string' 
-      ? { title: messageData, description: '' }
+    const text = typeof messageData === 'string'
+      ? {title: messageData, description: ''}
       : messageData;
 
     const message = JSON.stringify({
@@ -1031,14 +1029,14 @@ export class ModbusManager {
         throw new Error(`Устройство ${displayDeviceName} не найдено после обновления`);
       }
 
-      if (updatedDevice.enabled && updatedDevice.tags.length > 0) {
+      if (updatedDevice.enabled && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
         // Обновляем устройство в connection.devices
         connection.devices.set(deviceId, updatedDevice);
-        
+
         // Задержка перед запуском опроса для стабильности RS-485
         // Даем время на очистку буфера и инициализацию устройства
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         // Запускаем опрос устройства
         this.startDevicePolling(updatedDevice, connection.client);
       } else {

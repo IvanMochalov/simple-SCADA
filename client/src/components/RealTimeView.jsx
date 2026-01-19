@@ -155,7 +155,19 @@ export default function RealTimeView() {
       writeForm.resetFields()
     } catch (error) {
       console.error('Error writing tag value:', error)
-      notification.error('Ошибка при записи значения', error.response?.data?.error || error.message || "")
+      
+      // Формируем детальное сообщение об ошибке
+      const errorData = error.response?.data || {}
+      let errorMessage = errorData.error || error.message || "Неизвестная ошибка"
+      
+      // Логируем полную информацию об ошибке для отладки
+      if (errorData.modbusCode) {
+        console.log('Modbus error code:', errorData.modbusCode)
+      }
+      
+      // Сообщение уже содержит детальную информацию с сервера,
+      // но можно добавить дополнительную информацию о modbusCode в консоль
+      notification.error('Ошибка при записи значения', errorMessage)
     } finally {
       setIsWriting(false)
     }

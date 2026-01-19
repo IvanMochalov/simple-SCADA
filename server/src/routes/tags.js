@@ -202,7 +202,18 @@ export default function tagRoutes(prisma, modbusManager) {
       res.json(result);
     } catch (error) {
       console.error('Error writing tag value:', error);
-      res.status(500).json({error: error.message});
+      
+      // Передаем информацию об ошибке, включая modbusCode если он есть
+      const errorResponse = {
+        error: error.message,
+        modbusCode: error.modbusCode,
+        originalError: error.originalError ? {
+          message: error.originalError.message,
+          name: error.originalError.name
+        } : undefined
+      };
+      
+      res.status(500).json(errorResponse);
     }
   });
 

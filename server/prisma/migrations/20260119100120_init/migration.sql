@@ -9,6 +9,8 @@ CREATE TABLE "ConnectionNode" (
     "stopBits" INTEGER NOT NULL DEFAULT 1,
     "parity" TEXT NOT NULL DEFAULT 'none',
     "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "connectionStatus" TEXT NOT NULL DEFAULT 'disconnected',
+    "lastError" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL
 );
@@ -22,7 +24,6 @@ CREATE TABLE "Device" (
     "responseTimeout" INTEGER NOT NULL DEFAULT 1000,
     "pollInterval" INTEGER NOT NULL DEFAULT 1000,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
-    "status" TEXT NOT NULL DEFAULT 'unknown',
     "lastPollTime" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
