@@ -52,6 +52,25 @@ export default function ConnectionTree() {
     }
   }, [state])
 
+  // Автоматически открываем все узлы и устройства по умолчанию
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const allNodeIds = new Set(nodes.map(node => node.id))
+      const allDeviceIds = new Set()
+      
+      nodes.forEach(node => {
+        if (node.devices) {
+          node.devices.forEach(device => {
+            allDeviceIds.add(device.id)
+          })
+        }
+      })
+      
+      setExpandedNodes(allNodeIds)
+      setExpandedDevices(allDeviceIds)
+    }
+  }, [nodes])
+
   const loadNodes = async () => {
     try {
       const response = await api.getAllNodes()

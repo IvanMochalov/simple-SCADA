@@ -10,7 +10,6 @@ export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const {isConnected, state} = useWebSocket()
-  console.log("state: -->", state);
 
   const getSelectedKey = () => {
     if (location.pathname === '/') return ['config']

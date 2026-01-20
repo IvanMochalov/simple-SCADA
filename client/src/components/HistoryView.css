@@ -31,3 +31,8 @@
 .history-view .ant-space-item .ant-picker {
   width: 100%;
 }
+
+/* Убираем лишний margin-bottom у Form.Item в Drawer с фильтрами */
+.ant-drawer-body .ant-form-item {
+  margin-bottom: 0;
+}

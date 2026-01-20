@@ -17,9 +17,17 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.realtime-view .tag-value {
-  font-size: 2rem;
-  font-weight: 600;
-  color: #27ae60;
-  margin: 0.5rem 0;
+.realtime-view {
+  & .tag-value {
+    font-size: 2rem;
+    line-height: 1;
+  }
+
+  & .tag-value.ant-typography-edit-content {
+    width: 80px;
+    align-self: center;
+    margin-bottom: 0;
+    inset-inline-start: 0;
+    inset-block-start: 0;
+  }
 }

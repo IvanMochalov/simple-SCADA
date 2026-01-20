@@ -1,9 +1,10 @@
-import React, {useState, useMemo} from 'react'
+import React, {useState, useMemo, useEffect} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './RealTimeView.css'
 import {api} from "../services/api.js";
 import {useNotification} from "../context/NotificationContext";
 import {
+  Flex,
   Card,
   Button,
   Typography,
@@ -14,22 +15,18 @@ import {
   Space,
   Row,
   Col,
-  Tooltip,
-  Modal,
-  InputNumber,
-  Form
+  Tooltip
 } from 'antd';
 import {
   PlayCircleOutlined,
   StopOutlined,
   ReloadOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined,
-  EditOutlined
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import {isNumeric} from "../utils/index.js";
 
-const {Title, Text} = Typography;
+const {Title, Text, Paragraph} = Typography;
 
 export default function RealTimeView() {
   const notification = useNotification();
@@ -38,16 +35,31 @@ export default function RealTimeView() {
   const [expandedDevices, setExpandedDevices] = useState(new Set())
   const [isModbusRunning, setIsModbusRunning] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
-  const [writeModalVisible, setWriteModalVisible] = useState(false)
-  const [selectedTagForWrite, setSelectedTagForWrite] = useState(null)
-  const [writeForm] = Form.useForm()
-  const [isWriting, setIsWriting] = useState(false)
 
   // Фильтруем только включенные узлы связи
   const enabledNodes = useMemo(() => {
     if (!state || !state.nodes) return []
     return state.nodes.filter(node => node.enabled)
   }, [state])
+
+  // Автоматически открываем все узлы и устройства по умолчанию
+  useEffect(() => {
+    if (enabledNodes.length > 0) {
+      const allNodeIds = new Set(enabledNodes.map(node => node.id))
+      const allDeviceIds = new Set()
+      
+      enabledNodes.forEach(node => {
+        if (node.devices) {
+          node.devices.forEach(device => {
+            allDeviceIds.add(device.id)
+          })
+        }
+      })
+      
+      setExpandedNodes(allNodeIds)
+      setExpandedDevices(allDeviceIds)
+    }
+  }, [enabledNodes])
 
   const toggleNode = (nodeId) => {
     const newExpanded = new Set(expandedNodes)
@@ -134,44 +146,53 @@ export default function RealTimeView() {
     }
   }
 
-  const handleWriteTag = (device, tag, node) => {
-    const tagValue = getTagValue(device.id, tag.id)
-    setSelectedTagForWrite({device, tag, node, currentValue: tagValue?.value})
-    writeForm.setFieldsValue({value: tagValue?.value || 0})
-    setWriteModalVisible(true)
-  }
+  const handleTagValueChange = async (tag, tagValue, str) => {
+    const originalValue = formatTagValue(tagValue.value);
 
-  const handleWriteSubmit = async () => {
-    if (!selectedTagForWrite) return
+    // Валидация: проверяем, что введено число
+    const trimmedStr = str.trim();
+    if (!trimmedStr) {
+      notification.error('Ошибка', 'Введите только целое число (только цифры)');
+      return originalValue;
+    }
 
-    try {
-      const values = await writeForm.validateFields()
-      setIsWriting(true)
+    const numValue = tag.serverDataType === 'float'
+      ? parseFloat(trimmedStr)
+      : parseInt(trimmedStr, 10);
 
-      await api.writeTagValue(selectedTagForWrite.tag.id, values.value)
-      notification.success(`Значение тега "${selectedTagForWrite.tag.name}" успешно записано`)
-      setWriteModalVisible(false)
-      setSelectedTagForWrite(null)
-      writeForm.resetFields()
-    } catch (error) {
-      console.error('Error writing tag value:', error)
+    // Проверка на валидное число
+    if (isNaN(numValue)) {
+      notification.error('Ошибка', 'Введите только целое число (только цифры)');
+      return originalValue;
+    }
 
-      // Формируем детальное сообщение об ошибке
-      const errorData = error.response?.data || {}
-      let errorMessage = errorData.error || error.message || "Неизвестная ошибка"
-
-      // Логируем полную информацию об ошибке для отладки
-      if (errorData.modbusCode) {
-        console.log('Modbus error code:', errorData.modbusCode)
+    // Для целых чисел проверяем, что строка содержит только цифры (и минус в начале)
+    if (tag.serverDataType !== 'float') {
+      if (!/^-?\d+$/.test(trimmedStr)) {
+        notification.error('Ошибка', 'Введите только целое число (только цифры)');
+        return originalValue;
       }
+    }
 
-      // Сообщение уже содержит детальную информацию с сервера,
-      // но можно добавить дополнительную информацию о modbusCode в консоль
-      notification.error('Ошибка при записи значения', errorMessage)
-    } finally {
-      setIsWriting(false)
+    // Проверяем, изменилось ли значение
+    if (numValue === tagValue.value) {
+      return originalValue;
+    }
+
+    // Сохраняем значение
+    try {
+      await api.writeTagValue(tag.id, numValue);
+      notification.success(`Значение тега "${tag.name}" успешно записано`);
+      return formatTagValue(numValue);
+    } catch (error) {
+      console.error('Error writing tag value:', error);
+      const errorData = error.response?.data || {};
+      const errorMessage = errorData.error || error.message || "Неизвестная ошибка";
+      notification.error('Ошибка при записи значения', errorMessage);
+      return originalValue;
     }
   }
+
 
   if (!isConnected) {
     return (
@@ -263,27 +284,7 @@ export default function RealTimeView() {
 
     const tagValue = getTagValue(device.id, tag.id)
 
-    return tagValue ? (
-      <>
-        <div className="tag-value">
-          {formatTagValue(tagValue.value)}
-        </div>
-        {tagValue.error && (
-          <Text type="danger" style={{fontSize: '12px'}}>
-            {tagValue.error}
-          </Text>
-        )}
-        <Text type="secondary" style={{fontSize: '11px'}}>
-          {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
-        </Text>
-      </>
-    ) : (
-      <Text type="secondary">Нет данных</Text>
-    )
-  }
-
-  const renderTagContent = (device, tag, node) => {
-    const tagValue = getTagValue(device.id, tag.id)
+    // Определяем, можно ли записывать значение в тег
     const canWrite = tag.accessType === 'ReadWrite' &&
       isModbusRunning &&
       node.connectionStatus === 'connected' &&
@@ -292,6 +293,41 @@ export default function RealTimeView() {
       tagValue &&
       !tagValue.error
 
+    return tagValue ? (
+      <React.Fragment>
+        {canWrite ? (
+          <Flex justify={"center"}>
+            <Text
+              type='success'
+              editable={{
+                onChange: (str) => handleTagValueChange(tag, tagValue, str),
+                tooltip: 'Нажмите для редактирования'
+              }}
+              className={"tag-value"}
+            >
+              {formatTagValue(tagValue.value)}
+            </Text>
+          </Flex>
+        ) : (
+          <Text type="success" style={{fontSize: '2rem'}}>
+            {formatTagValue(tagValue.value)}
+          </Text>
+        )}
+        {tagValue.error && (
+          <Text type="danger" style={{fontSize: '12px'}}>
+            {tagValue.error}
+          </Text>
+        )}
+        <Text type="secondary" style={{fontSize: '11px'}}>
+          {new Date(tagValue.timestamp).toLocaleTimeString('ru-RU')}
+        </Text>
+      </React.Fragment>
+    ) : (
+      <Text type="secondary">Нет данных</Text>
+    )
+  }
+
+  const renderTagContent = (device, tag, node) => {
     return (
       <Col key={tag.id} xs={24} sm={12} md={8} lg={6}>
         <Card size="small" className="tag-card"
@@ -303,9 +339,19 @@ export default function RealTimeView() {
             justifyContent: "space-between"
           }}>
             <div style={{textAlign: "start"}}>
-              <Space align={"start"} style={{justifyContent: "space-between", width: "100%"}}>
-                <Text strong>{tag.name}</Text>
-                <Space size="small">
+              <Flex justify="space-between" align="center" gap="small" style={{width: '100%'}}>
+                <Tooltip title={tag.name}>
+                  <Paragraph
+                    strong
+                    ellipsis={true}
+                    style={{
+                      margin: 0,
+                    }}
+                  >
+                    {tag.name}
+                  </Paragraph>
+                </Tooltip>
+                <Space size="small" style={{flexShrink: 0}}>
                   <Tag
                     color={tag.enabled ? 'success' : 'default'}
                     icon={tag.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
@@ -313,19 +359,8 @@ export default function RealTimeView() {
                   >
                     {tag.enabled ? 'Вкл' : 'Выкл'}
                   </Tag>
-                  {canWrite && (
-                    <Tooltip title="Изменить значение">
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<EditOutlined/>}
-                        onClick={() => handleWriteTag(device, tag, node)}
-                      />
-                    </Tooltip>
-                  )}
                 </Space>
-              </Space>
-              <br/>
+              </Flex>
               <Text type="secondary" style={{fontSize: '12px'}}>
                 Адрес: {tag.address}
               </Text>
@@ -440,49 +475,6 @@ export default function RealTimeView() {
         </Space>
       </Space>
 
-      {/* Модальное окно для записи значения */}
-      <Modal
-        title={`Изменить значение тега "${selectedTagForWrite?.tag?.name || ''}"`}
-        open={writeModalVisible}
-        onOk={handleWriteSubmit}
-        onCancel={() => {
-          setWriteModalVisible(false)
-          setSelectedTagForWrite(null)
-          writeForm.resetFields()
-        }}
-        confirmLoading={isWriting}
-        okText="Записать"
-        cancelText="Отмена"
-      >
-        <Form
-          form={writeForm}
-          layout="vertical"
-          initialValues={{
-            value: selectedTagForWrite?.currentValue || 0
-          }}
-        >
-          <Form.Item
-            label="Новое значение"
-            name="value"
-            rules={[
-              {required: true, message: 'Введите значение'},
-              {type: 'number', message: 'Значение должно быть числом'}
-            ]}
-          >
-            <InputNumber
-              style={{width: '100%'}}
-              placeholder="Введите значение"
-              step={selectedTagForWrite?.tag?.serverDataType === 'float' ? 0.01 : 1}
-              precision={selectedTagForWrite?.tag?.serverDataType === 'float' ? 2 : 0}
-            />
-          </Form.Item>
-          {selectedTagForWrite?.currentValue !== undefined && (
-            <Text type="secondary" style={{fontSize: '12px'}}>
-              Текущее значение: {formatTagValue(selectedTagForWrite.currentValue)}
-            </Text>
-          )}
-        </Form>
-      </Modal>
     </div>
   )
 }

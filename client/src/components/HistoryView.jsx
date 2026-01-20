@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useMemo, useCallback} from 'react'
+import React, {useState, useEffect, useMemo} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import './HistoryView.css'
 import {api} from "../services/api.js";
@@ -17,6 +17,7 @@ import {
   Form, Alert,
   Checkbox,
   Drawer,
+  Tree,
 } from 'antd';
 import {FilterOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -56,7 +57,55 @@ export default function HistoryView() {
       return {data: [], tags: history?.tags || []};
     }
 
-    const tags = history.tags || [];
+    let tags = history.tags || [];
+
+    // Дополняем теги информацией о узле связи из state, если она отсутствует
+    if (state?.nodes) {
+      tags = tags.map(tag => {
+        // Если уже есть nodeName, возвращаем как есть
+        if (tag.nodeName && tag.nodeId) {
+          return tag;
+        }
+
+        // Ищем устройство по deviceId
+        // Если фильтруем по устройству и deviceId отсутствует в теге, используем selectedDeviceId
+        const deviceIdToFind = tag.deviceId || (filterLevel === 'device' && selectedDeviceId ? selectedDeviceId : null);
+
+        if (!deviceIdToFind) {
+          return tag;
+        }
+
+        let foundDevice = null;
+        let foundNode = null;
+
+        for (const node of state.nodes) {
+          if (node.devices) {
+            foundDevice = node.devices.find(d => d.id === deviceIdToFind);
+            if (foundDevice) {
+              foundNode = node;
+              break;
+            }
+          }
+        }
+
+        // Если нашли устройство и узел, дополняем информацию
+        if (foundDevice && foundNode) {
+          return {
+            ...tag,
+            deviceId: deviceIdToFind,
+            tagId: tag.tagId || tag.id,
+            nodeId: foundNode.id,
+            nodeName: foundNode.name,
+            deviceName: foundDevice.name,
+            tagName: tag.tagName || tag.name,
+            displayName: tag.displayName || `${foundNode.name} → ${foundDevice.name} → ${tag.tagName || tag.name}`
+          };
+        }
+
+        return tag;
+      });
+    }
+
     const tableData = history.data.map((row, index) => {
       const tableRow = {
         id: row.timestamp,
@@ -81,15 +130,15 @@ export default function HistoryView() {
       data: tableData,
       tags: tags
     };
-  }, [history]);
+  }, [history, state, filterLevel, selectedDeviceId]);
 
   // Преобразуем данные для графика
   const chartData = useMemo(() => {
-    if (!history || !history.data || history.data.length === 0) {
+    if (!transformedData.data || transformedData.data.length === 0) {
       return [];
     }
 
-    const tags = history.tags || [];
+    const tags = transformedData.tags || [];
     const selectedTags = selectedTagsForChart.length > 0
       ? tags.filter(tag => selectedTagsForChart.includes(tag.id))
       : tags; // Если ничего не выбрано, показываем все теги
@@ -98,7 +147,7 @@ export default function HistoryView() {
       return [];
     }
 
-    return history.data.map(row => {
+    return transformedData.data.map(row => {
       const chartPoint = {
         time: new Date(row.timestamp).toLocaleString('ru-RU', {
           day: '2-digit',
@@ -114,9 +163,10 @@ export default function HistoryView() {
       selectedTags.forEach(tag => {
         const tagKey = tag.id || `${tag.deviceId}_${tag.tagId}`;
         const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
+        const dataKey = `tag_${tagKey}`;
 
-        if (row.tags && row.tags[tagKey] && row.tags[tagKey].value !== null && row.tags[tagKey].value !== undefined) {
-          const value = row.tags[tagKey].value;
+        if (row[dataKey] !== null && row[dataKey] !== undefined) {
+          const value = row[dataKey];
           chartPoint[displayName] = isNumeric(value) ? Number(value) : value;
         } else {
           chartPoint[displayName] = null;
@@ -125,7 +175,86 @@ export default function HistoryView() {
 
       return chartPoint;
     });
-  }, [history, selectedTagsForChart]);
+  }, [transformedData, selectedTagsForChart]);
+
+  // Преобразуем теги в иерархическую структуру для Tree
+  const treeData = useMemo(() => {
+    if (!transformedData.tags || transformedData.tags.length === 0) {
+      return [];
+    }
+
+    // Группируем теги по узлам связи → устройства → теги
+    const groupedByNode = {};
+
+    transformedData.tags.forEach(tag => {
+      const nodeName = tag.nodeName || 'Без узла';
+      const nodeId = tag.nodeId || 'no-node';
+      const deviceName = tag.deviceName || 'Без устройства';
+      const deviceId = tag.deviceId || 'no-device';
+      const tagName = tag.tagName || tag.name || 'Без названия';
+      const tagId = tag.id;
+
+      // Используем комбинацию nodeId и nodeName для уникальности
+      const nodeKey = `${nodeId}_${nodeName}`;
+      if (!groupedByNode[nodeKey]) {
+        groupedByNode[nodeKey] = {
+          nodeName,
+          nodeId,
+          devices: {}
+        };
+      }
+      
+      // Используем комбинацию deviceId и deviceName для уникальности
+      const deviceKey = `${deviceId}_${deviceName}`;
+      if (!groupedByNode[nodeKey].devices[deviceKey]) {
+        groupedByNode[nodeKey].devices[deviceKey] = {
+          deviceName,
+          deviceId,
+          tags: []
+        };
+      }
+
+      groupedByNode[nodeKey].devices[deviceKey].tags.push({
+        title: tagName,
+        key: tagId,
+        isLeaf: true
+      });
+    });
+
+    // Преобразуем в структуру Tree
+    return Object.keys(groupedByNode).map(nodeKey => {
+      const nodeData = groupedByNode[nodeKey];
+      const deviceChildren = Object.keys(nodeData.devices).map(deviceKey => {
+        const deviceData = nodeData.devices[deviceKey];
+        return {
+          title: deviceData.deviceName,
+          key: `device_${deviceData.deviceId}`,
+          children: deviceData.tags
+        };
+      });
+
+      return {
+        title: nodeData.nodeName,
+        key: `node_${nodeData.nodeId}`,
+        children: deviceChildren
+      };
+    });
+  }, [transformedData.tags]);
+
+  // Обработчик изменения выбранных тегов в Tree
+  const handleTreeCheck = (checkedKeys, info) => {
+    // checkedKeys может быть массивом или объектом {checked: [], halfChecked: []}
+    const keys = Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked || [];
+    
+    // Фильтруем только ключи тегов (не узлов и устройств)
+    // Ключи тегов - это не начинаются с "node_" или "device_"
+    const tagKeys = keys.filter(key => {
+      const keyStr = String(key);
+      return !keyStr.startsWith('node_') && !keyStr.startsWith('device_');
+    });
+    
+    setSelectedTagsForChart(tagKeys);
+  };
 
   // Получаем список узлов
   const allNodes = useMemo(() => {
@@ -214,6 +343,23 @@ export default function HistoryView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, state?.nodes]);
 
+  // Синхронизируем selectedTagsForChart с transformedData.tags при изменении истории
+  useEffect(() => {
+    if (transformedData.tags && transformedData.tags.length > 0) {
+      // Проверяем, что выбранные теги все еще существуют в новых данных
+      const existingTagIds = transformedData.tags.map(tag => tag.id);
+      const validSelectedTags = selectedTagsForChart.filter(id => existingTagIds.includes(id));
+      
+      // Если нет выбранных тегов или они не совпадают, выбираем все
+      if (validSelectedTags.length === 0 && selectedTagsForChart.length > 0) {
+        setSelectedTagsForChart(existingTagIds);
+      } else if (validSelectedTags.length !== selectedTagsForChart.length) {
+        setSelectedTagsForChart(validSelectedTags);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transformedData.tags]);
+
   // Обработчики изменения фильтров
   const handleLevelChange = (level) => {
     setFilterLevel(level);
@@ -266,34 +412,70 @@ export default function HistoryView() {
       },
     ];
 
-    // Добавляем колонки для каждого тега
+    // Группируем теги по узлам связи → устройства → теги
     if (transformedData.tags && transformedData.tags.length > 0) {
+      // Создаем структуру: nodeName -> deviceName -> tags[]
+      const groupedByNode = {};
+
       transformedData.tags.forEach(tag => {
+        const nodeName = tag.nodeName || 'Без узла';
+        const deviceName = tag.deviceName || 'Без устройства';
+        const tagName = tag.tagName || tag.name || 'Без названия';
         const tagKey = tag.id || `${tag.deviceId}_${tag.tagId}`;
-        const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
+
+        if (!groupedByNode[nodeName]) {
+          groupedByNode[nodeName] = {};
+        }
+        if (!groupedByNode[nodeName][deviceName]) {
+          groupedByNode[nodeName][deviceName] = [];
+        }
+
+        groupedByNode[nodeName][deviceName].push({
+          tagKey,
+          tagName,
+          tag
+        });
+      });
+
+      // Преобразуем структуру в колонки с вложенностью
+      Object.keys(groupedByNode).forEach(nodeName => {
+        const devices = groupedByNode[nodeName];
+        const deviceColumns = [];
+
+        Object.keys(devices).forEach(deviceName => {
+          const tags = devices[deviceName];
+          const tagColumns = tags.map(({tagKey, tagName, tag}) => ({
+            title: tagName,
+            dataIndex: `tag_${tagKey}`,
+            key: `tag_${tagKey}`,
+            width: 150,
+            render: (value) => {
+              const formattedValue = formatTagValue(value);
+              return (
+                <span className="value-cell" style={{
+                  color: value !== null && value !== undefined ? '#1890ff' : '#999',
+                  fontWeight: value !== null && value !== undefined ? '600' : 'normal'
+                }}>
+                  {formattedValue}
+                </span>
+              );
+            },
+            sorter: (a, b) => {
+              const valA = a[`tag_${tagKey}`] || 0;
+              const valB = b[`tag_${tagKey}`] || 0;
+              return valA - valB;
+            },
+          }));
+
+          deviceColumns.push({
+            title: deviceName,
+            children: tagColumns,
+          });
+        });
 
         baseColumns.push({
-          title: displayName,
-          dataIndex: `tag_${tagKey}`,
-          key: `tag_${tagKey}`,
-          width: 150,
-          render: (value) => {
-            const formattedValue = formatTagValue(value);
-
-            return (
-              <span className="value-cell" style={{
-                color: value !== null && value !== undefined ? '#1890ff' : '#999',
-                fontWeight: value !== null && value !== undefined ? '600' : 'normal'
-              }}>
-                {formattedValue}
-              </span>
-            );
-          },
-          sorter: (a, b) => {
-            const valA = a[`tag_${tagKey}`] || 0;
-            const valB = b[`tag_${tagKey}`] || 0;
-            return valA - valB;
-          },
+          title: nodeName,
+          children: deviceColumns,
         });
       });
     }
@@ -611,6 +793,7 @@ export default function HistoryView() {
         <Card title="Таблица исторических данные">
           <div style={{overflowX: 'auto'}}>
             <Table
+              bordered={true}
               loading={loading}
               dataSource={transformedData.data}
               columns={columns}
@@ -639,24 +822,22 @@ export default function HistoryView() {
         >
           <Row gutter={[16, 16]}>
             <Col span={24}>
-              <Form.Item label="Выберите теги для отображения на графике">
-                <Checkbox.Group
-                  value={selectedTagsForChart}
-                  onChange={(checkedValues) => setSelectedTagsForChart(checkedValues)}
-                  style={{width: '100%'}}
-                >
-                  <Row gutter={[8, 8]}>
-                    {transformedData.tags.map(tag => {
-                      const displayName = tag.displayName || `${tag.nodeName || ''} → ${tag.deviceName || ''} → ${tag.tagName || tag.name || ''}`;
-                      return (
-                        <Col key={tag.id} span={8}>
-                          <Checkbox value={tag.id}>{displayName}</Checkbox>
-                        </Col>
-                      );
-                    })}
-                  </Row>
-                </Checkbox.Group>
-              </Form.Item>
+              <Text strong>Выберите теги для отображения на графике:</Text>
+              <Tree
+                checkable
+                checkedKeys={selectedTagsForChart}
+                onCheck={handleTreeCheck}
+                treeData={treeData}
+                defaultExpandAll={true}
+                showLine={{showLeafIcon: false}}
+                style={{
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  border: '1px solid #d9d9d9',
+                  borderRadius: '6px',
+                  padding: '8px'
+                }}
+              />
             </Col>
             <Col span={24}>
               {chartData.length > 0 && selectedTagsForChart.length > 0 ? (
