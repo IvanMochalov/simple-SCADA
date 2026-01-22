@@ -1,8 +1,26 @@
+/**
+ * Context для управления уведомлениями пользователя
+ * 
+ * Предоставляет методы для отображения уведомлений:
+ * - success: успешные операции
+ * - error: ошибки
+ * - warning: предупреждения
+ * - info: информационные сообщения
+ * 
+ * Использует Ant Design notification с кастомными стилями.
+ */
+
 import React, {createContext, useContext} from 'react';
 import {notification} from 'antd';
 
 const NotificationContext = createContext(null);
 
+/**
+ * Хук для доступа к методам уведомлений
+ * 
+ * @returns {Object} { success, error, warning, info, open, destroy }
+ * @throws {Error} если используется вне NotificationProvider
+ */
 export const useNotification = () => {
   const context = useContext(NotificationContext);
   if (!context) {

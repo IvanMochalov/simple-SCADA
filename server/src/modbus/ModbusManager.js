@@ -1,26 +1,67 @@
+/**
+ * ModbusManager - основной класс для управления Modbus RTU соединениями
+ * 
+ * Отвечает за:
+ * - Управление соединениями с COM портами (узлы связи)
+ * - Опрос Modbus устройств по расписанию
+ * - Кэширование значений тегов
+ * - Сбор исторических данных
+ * - Запись значений в теги
+ * - Отправку обновлений через WebSocket
+ * 
+ * Использует библиотеку modbus-serial для работы с Modbus RTU протоколом.
+ */
+
 import ModbusRTU from 'modbus-serial';
 import {isIterable} from "../utils/index.js";
 
 export class ModbusManager {
   constructor(prisma, wss) {
-    this.prisma = prisma;
-    this.wss = wss;
-    this.connections = new Map(); // connectionNodeId -> { client, devices }
-    this.pollingIntervals = new Map(); // deviceId -> interval
+    this.prisma = prisma; // Prisma клиент для работы с БД
+    this.wss = wss; // WebSocket сервер для отправки обновлений клиентам
+    
+    // Хранилище активных Modbus соединений: connectionNodeId -> { client, devices }
+    this.connections = new Map();
+    
+    // Интервалы опроса устройств: deviceId -> interval ID
+    this.pollingIntervals = new Map();
+    
+    // Интервал сбора исторических данных (каждую минуту)
     this.historyInterval = null;
+    
+    // Флаг работы Modbus Manager
     this.isRunning = false;
-    this.tagValuesCache = new Map(); // deviceId -> { tagId -> { value, timestamp } }
-    this.devicePollingLocks = new Map(); // deviceId -> Promise (текущий опрос)
-    this.deviceWriteLocks = new Map(); // deviceId -> Promise (текущая запись)
+    
+    // Кэш значений тегов: deviceId -> { tagId -> { value, timestamp } }
+    this.tagValuesCache = new Map();
+    
+    // Блокировки для предотвращения параллельного опроса одного устройства
+    // deviceId -> Promise (текущий опрос)
+    this.devicePollingLocks = new Map();
+    
+    // Блокировки для предотвращения параллельной записи в одно устройство
+    // deviceId -> Promise (текущая запись)
+    this.deviceWriteLocks = new Map();
   }
 
+  /**
+   * Запуск Modbus Manager
+   * 
+   * Выполняет:
+   * 1. Загрузку всех активных узлов связи с устройствами и тегами из БД
+   * 2. Инициализацию Modbus соединений для каждого узла
+   * 3. Запуск периодического опроса устройств
+   * 4. Запуск сбора исторических данных (каждую минуту)
+   * 
+   * Если какой-то узел не удалось запустить, работа продолжается с остальными.
+   */
   async start() {
     if (this.isRunning) return;
     this.isRunning = true;
 
     console.log('Starting Modbus Manager...');
 
-    // Загружаем все активные узлы связи с устройствами и тегами
+    // Загружаем все активные узлы связи с включенными устройствами и тегами
     const nodes = await this.prisma.connectionNode.findMany({
       where: {enabled: true},
       include: {
@@ -35,8 +76,8 @@ export class ModbusManager {
       }
     });
 
-    // Запускаем соединения для каждого узла
-    // Если один узел не запустился, продолжаем работу с остальными
+    // Запускаем Modbus соединения для каждого узла связи
+    // Если один узел не запустился (например, COM порт занят), продолжаем с остальными
     for (const node of nodes) {
       try {
         await this.startConnection(node);
@@ -46,7 +87,8 @@ export class ModbusManager {
       }
     }
 
-    // Запускаем сбор исторических данных каждую минуту
+    // Запускаем периодический сбор исторических данных (каждую минуту)
+    // Проверяем, есть ли хотя бы один активный тег в системе
     this.historyInterval = setInterval(() => {
       const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node =>
         node.enabled &&
@@ -66,19 +108,28 @@ export class ModbusManager {
     console.log('Modbus Manager started');
   }
 
+  /**
+   * Остановка Modbus Manager
+   * 
+   * Выполняет:
+   * 1. Остановку всех интервалов опроса устройств
+   * 2. Закрытие всех Modbus соединений
+   * 3. Обновление статусов узлов связи в БД
+   * 4. Остановку сбора исторических данных
+   */
   async stop() {
     if (!this.isRunning) return;
     this.isRunning = false;
 
     console.log('Stopping Modbus Manager...');
 
-    // Останавливаем все интервалы опроса
+    // Останавливаем все интервалы периодического опроса устройств
     for (const interval of this.pollingIntervals.values()) {
       clearInterval(interval);
     }
     this.pollingIntervals.clear();
 
-    // Закрываем все соединения и обновляем статусы
+    // Закрываем все Modbus соединения и обновляем статусы в БД
     const nodeIds = Array.from(this.connections.keys());
     for (const nodeId of nodeIds) {
       const conn = this.connections.get(nodeId);
@@ -86,7 +137,7 @@ export class ModbusManager {
         if (conn && conn.client && conn.client.isOpen) {
           await conn.client.close();
         }
-        // Обновляем статус узла на disconnected
+        // Обновляем статус узла связи на 'disconnected' в БД
         await this.updateNodeConnectionStatus(nodeId, 'disconnected', null);
       } catch (error) {
         console.error(`Error closing connection ${nodeId}:`, error);
@@ -94,18 +145,30 @@ export class ModbusManager {
     }
     this.connections.clear();
 
-    // Останавливаем сбор истории
+    // Останавливаем интервал сбора исторических данных
     if (this.historyInterval) {
       clearInterval(this.historyInterval);
       this.historyInterval = null;
     }
   }
 
+  /**
+   * Инициализация Modbus соединения для узла связи
+   * 
+   * @param {Object} node - узел связи с настройками COM порта
+   * 
+   * Выполняет:
+   * 1. Загрузку устройств и тегов узла (если не загружены)
+   * 2. Создание Modbus RTU клиента
+   * 3. Подключение к COM порту с указанными параметрами
+   * 4. Настройку таймаута
+   * 5. Запуск периодического опроса устройств
+   */
   async startConnection(node) {
     try {
       console.log(`Starting connection for node ${node.name} (${node.comPort})`);
 
-      // Если устройства не загружены, загружаем их
+      // Если устройства не были загружены вместе с узлом, загружаем их отдельно
       if (!node.devices || node.devices.length === 0) {
         const nodeWithDevices = await this.prisma.connectionNode.findUnique({
           where: {id: node.id},
@@ -127,10 +190,11 @@ export class ModbusManager {
         }
       }
 
+      // Создаем Modbus RTU клиент
       const client = new ModbusRTU();
 
-      // Используем connectRTUBuffered для подключения к COM порту
-      // modbus-serial сам создаст и откроет SerialPort
+      // Подключаемся к COM порту с буферизацией
+      // modbus-serial автоматически создаст и откроет SerialPort
       await client.connectRTUBuffered(node.comPort, {
         baudRate: node.baudRate,
         dataBits: node.dataBits,
@@ -139,11 +203,12 @@ export class ModbusManager {
       });
 
       // Даем время на инициализацию COM порта и очистку буфера
-      // Это критично для стабильной работы RS-485
+      // Это критично для стабильной работы RS-485, особенно при переключении направления
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Устанавливаем таймаут для всех устройств (берем минимальный)
-      // Если устройств нет, используем дефолтный таймаут
+      // Устанавливаем таймаут для Modbus операций
+      // Используем минимальный таймаут среди всех устройств узла
+      // Если устройств нет, используем дефолтный таймаут 1000 мс
       const timeouts = node.devices.map(d => d.responseTimeout || 1000);
       const minTimeout = timeouts.length > 0 ? Math.min(...timeouts) : 1000;
       client.setTimeout(minTimeout);

@@ -1,3 +1,13 @@
+/**
+ * Основной layout приложения
+ * 
+ * Содержит:
+ * - Заголовок с названием системы
+ * - Индикатор статуса подключения к серверу
+ * - Навигационное меню для переключения между разделами
+ * - Область контента для отображения дочерних компонентов
+ */
+
 import React from 'react'
 import {useNavigate, useLocation, Outlet} from 'react-router-dom'
 import {Layout as AntLayout, Menu, Typography, Badge, Space} from 'antd'

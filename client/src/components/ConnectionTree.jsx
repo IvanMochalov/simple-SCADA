@@ -1,3 +1,19 @@
+/**
+ * Компонент конфигурации системы
+ * 
+ * Отображает иерархическую структуру:
+ * - Узлы связи (Connection Nodes) - COM порты
+ * - Устройства (Devices) - Modbus устройства
+ * - Теги (Tags) - регистры Modbus
+ * 
+ * Позволяет:
+ * - Создавать, редактировать и удалять узлы связи, устройства и теги
+ * - Просматривать статусы включения/выключения элементов
+ * - Управлять конфигурацией через формы (ConnectionNodeForm, DeviceForm, TagForm)
+ * 
+ * Все узлы и устройства развернуты по умолчанию для удобства навигации.
+ */
+
 import React, {useState, useEffect} from 'react'
 import {useWebSocket} from '../context/WebSocketContext'
 import ConnectionNodeForm from './ConnectionNodeForm'

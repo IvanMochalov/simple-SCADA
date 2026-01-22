@@ -1,3 +1,15 @@
+/**
+ * WebSocket Context для получения данных в реальном времени
+ * 
+ * Управляет WebSocket соединением с сервером и предоставляет:
+ * - state: текущее состояние системы (узлы связи, устройства, теги)
+ * - tagValues: актуальные значения тегов, обновляемые в реальном времени
+ * - isConnected: статус подключения
+ * - refreshState: функция для принудительного обновления состояния через REST API
+ * 
+ * Автоматически переподключается при разрыве соединения.
+ */
+
 import React, {createContext, useContext, useEffect, useState, useRef} from 'react'
 import axios from 'axios'
 import {api, API_BASE, HOST} from "../services/api.js";
@@ -6,16 +18,31 @@ import {useNotification} from './NotificationContext.jsx';
 const WebSocketContext = createContext(null)
 
 export function WebSocketProvider({children}) {
-  const [ws, setWs] = useState(null)
+  // Состояние WebSocket соединения (не используется напрямую, хранится в wsRef)
+  const [ws] = useState(null)
+  
+  // Флаг подключения к WebSocket серверу
   const [isConnected, setIsConnected] = useState(false)
+  
+  // Текущее состояние системы: { nodes: [...], modbusManagerStatus: {...} }
   const [state, setState] = useState(null)
-  const [tagValues, setTagValues] = useState({}) // { deviceId: { tagId: { value, timestamp } } }
+  
+  // Значения тегов: { deviceId: { tagId: { value, timestamp } } }
+  const [tagValues, setTagValues] = useState({})
+  
+  // Ссылка на WebSocket объект для доступа из обработчиков
   const wsRef = useRef(null)
+  
+  // Таймер для автоматического переподключения
   const reconnectTimeoutRef = useRef(null)
+  
   const notification = useNotification()
 
+  // Инициализация WebSocket соединения при монтировании компонента
   useEffect(() => {
     connectWebSocket()
+    
+    // Очистка при размонтировании
     return () => {
       if (wsRef.current) {
         wsRef.current.close()
@@ -26,8 +53,19 @@ export function WebSocketProvider({children}) {
     }
   }, [])
 
+  /**
+   * Подключение к WebSocket серверу
+   * 
+   * Обрабатывает три типа сообщений от сервера:
+   * - 'state': обновление состояния системы (узлы, устройства, теги)
+   * - 'tagValues': обновление значений тегов в реальном времени
+   * - 'message': уведомления от сервера (ошибки, предупреждения)
+   * 
+   * Автоматически переподключается через 3 секунды при разрыве соединения.
+   */
   const connectWebSocket = () => {
     try {
+      // Определяем протокол WebSocket в зависимости от протокола страницы
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const wsUrl = `${protocol}//${HOST}:3001`
       const websocket = new WebSocket(wsUrl)
@@ -36,6 +74,8 @@ export function WebSocketProvider({children}) {
         console.log('WebSocket connected')
         setIsConnected(true)
         wsRef.current = websocket
+        
+        // Отменяем запланированное переподключение, если оно было
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current)
         }
@@ -46,20 +86,22 @@ export function WebSocketProvider({children}) {
           const message = JSON.parse(event.data)
 
           if (message.type === 'state') {
-            // Обновляем состояние - клиент автоматически перерисует компоненты
+            // Обновление состояния системы - React автоматически перерисует компоненты
             setState(message.data)
             console.log('State updated from server:', message.data)
           } else if (message.type === 'tagValues') {
+            // Обновление значений тегов для конкретного устройства
             setTagValues(prev => {
               const newValues = {...prev}
               if (!newValues[message.deviceId]) {
                 newValues[message.deviceId] = {}
               }
+              // Объединяем новые значения с существующими
               Object.assign(newValues[message.deviceId], message.data)
               return newValues
             })
           } else if (message.type === 'message') {
-            // Обрабатываем сообщения от сервера и показываем уведомление
+            // Показываем уведомление пользователю (success, error, warning, info)
             const {text, messageType} = message.data
             const notificationMethod = notification[messageType] || notification.info
             notificationMethod(text.title, text.description)
@@ -79,7 +121,7 @@ export function WebSocketProvider({children}) {
         setIsConnected(false)
         wsRef.current = null
 
-        // Переподключение через 3 секунды
+        // Автоматическое переподключение через 3 секунды
         reconnectTimeoutRef.current = setTimeout(() => {
           connectWebSocket()
         }, 3000)
@@ -90,11 +132,16 @@ export function WebSocketProvider({children}) {
     }
   }
 
+  // Значение контекста, доступное всем дочерним компонентам
   const value = {
-    ws,
-    isConnected,
-    state,
-    tagValues,
+    ws, // WebSocket объект (для обратной совместимости, не используется)
+    isConnected, // Статус подключения
+    state, // Состояние системы
+    tagValues, // Значения тегов
+    /**
+     * Принудительное обновление состояния через REST API
+     * Используется при необходимости синхронизации с сервером
+     */
     refreshState: async () => {
       try {
         const response = await api.getAllNodes()
@@ -112,6 +159,12 @@ export function WebSocketProvider({children}) {
   )
 }
 
+/**
+ * Хук для доступа к WebSocket контексту
+ * 
+ * @returns {Object} { ws, isConnected, state, tagValues, refreshState }
+ * @throws {Error} если используется вне WebSocketProvider
+ */
 export function useWebSocket() {
   const context = useContext(WebSocketContext)
   if (!context) {

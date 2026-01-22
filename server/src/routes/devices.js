@@ -1,9 +1,19 @@
+/**
+ * REST API маршруты для управления устройствами Modbus
+ * 
+ * Устройство представляет собой Modbus slave с определенным адресом,
+ * подключенный к узлу связи (COM порту)
+ */
+
 import express from 'express';
 
 export default function deviceRoutes(prisma, modbusManager) {
   const router = express.Router();
 
-  // Получить все устройства
+  /**
+   * GET /api/devices
+   * Получить список всех устройств с информацией о узле связи и тегах
+   */
   router.get('/', async (req, res) => {
     try {
       const devices = await prisma.device.findMany({
@@ -19,7 +29,10 @@ export default function deviceRoutes(prisma, modbusManager) {
     }
   });
 
-  // Получить устройство по ID
+  /**
+   * GET /api/devices/:id
+   * Получить конкретное устройство по ID
+   */
   router.get('/:id', async (req, res) => {
     try {
       const device = await prisma.device.findUnique({
@@ -38,7 +51,18 @@ export default function deviceRoutes(prisma, modbusManager) {
     }
   });
 
-  // Создать устройство
+  /**
+   * POST /api/devices
+   * Создать новое устройство
+   * 
+   * Параметры:
+   * - connectionNodeId: ID узла связи, к которому подключено устройство
+   * - name: название устройства
+   * - address: Modbus адрес устройства (1-247)
+   * - responseTimeout: таймаут ответа в мс (по умолчанию 1000)
+   * - pollInterval: интервал опроса тегов в мс (по умолчанию 1000)
+   * - enabled: включено ли устройство в работу (по умолчанию true)
+   */
   router.post('/', async (req, res) => {
     try {
       const {connectionNodeId, name, address, responseTimeout, pollInterval, enabled} = req.body;
@@ -58,8 +82,8 @@ export default function deviceRoutes(prisma, modbusManager) {
         }
       });
 
+      // Перезапускаем соединение узла, чтобы новое устройство начало опрашиваться
       if (modbusManager.isRunning) {
-        // Перезапускаем соединение узла
         await modbusManager.reloadConnection(connectionNodeId);
       }
 
@@ -69,7 +93,12 @@ export default function deviceRoutes(prisma, modbusManager) {
     }
   });
 
-  // Обновить устройство
+  /**
+   * PUT /api/devices/:id
+   * Обновить параметры устройства
+   * 
+   * При изменении параметров опроса необходимо перезапустить соединение узла
+   */
   router.put('/:id', async (req, res) => {
     try {
       const {name, address, responseTimeout, pollInterval, enabled} = req.body;
@@ -98,8 +127,8 @@ export default function deviceRoutes(prisma, modbusManager) {
         }
       });
 
+      // Перезапускаем соединение узла для применения изменений
       if (modbusManager.isRunning) {
-        // Перезапускаем соединение узла
         await modbusManager.reloadConnection(device.connectionNodeId);
       }
 
@@ -109,7 +138,12 @@ export default function deviceRoutes(prisma, modbusManager) {
     }
   });
 
-  // Удалить устройство
+  /**
+   * DELETE /api/devices/:id
+   * Удалить устройство
+   * 
+   * Все связанные теги будут удалены каскадно (CASCADE)
+   */
   router.delete('/:id', async (req, res) => {
     try {
       const device = await prisma.device.findUnique({
@@ -127,8 +161,8 @@ export default function deviceRoutes(prisma, modbusManager) {
         where: {id: req.params.id}
       });
 
+      // Перезапускаем соединение узла после удаления устройства
       if (modbusManager.isRunning) {
-        // Перезапускаем соединение узла
         await modbusManager.reloadConnection(connectionNodeId);
       }
 
@@ -138,7 +172,12 @@ export default function deviceRoutes(prisma, modbusManager) {
     }
   });
 
-  // Переподключить устройство
+  /**
+   * POST /api/devices/:id/reconnect
+   * Переподключить устройство
+   * 
+   * Полезно при сбоях связи - закрывает и заново открывает Modbus соединение
+   */
   router.post('/:id/reconnect', async (req, res) => {
     try {
       const result = await modbusManager.reconnectDevice(req.params.id);

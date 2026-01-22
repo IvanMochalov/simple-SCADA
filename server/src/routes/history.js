@@ -1,9 +1,24 @@
+/**
+ * REST API маршруты для получения исторических данных
+ * 
+ * Исторические данные собираются автоматически каждую минуту
+ * для всех активных тегов подключенных устройств.
+ */
+
 import express from 'express';
 
 export default function historyRoutes(prisma) {
   const router = express.Router();
 
-  // Получить исторические данные для конкретного тега
+  /**
+   * GET /api/history/tag/:tagId
+   * Получить исторические данные для конкретного тега
+   * 
+   * Query параметры:
+   * - startTime: начальное время (ISO строка)
+   * - endTime: конечное время (ISO строка)
+   * - limit: максимальное количество записей (по умолчанию 1000)
+   */
   router.get('/tag/:tagId', async (req, res) => {
     try {
       const { tagId } = req.params;
@@ -42,7 +57,18 @@ export default function historyRoutes(prisma) {
     }
   });
 
-  // Получить исторические данные для узла связи
+  /**
+   * GET /api/history/node/:nodeId
+   * Получить исторические данные для всех устройств узла связи
+   * 
+   * Данные группируются по времени и возвращаются в табличном формате
+   * для удобного отображения в таблице и графиках.
+   * 
+   * Query параметры:
+   * - startTime: начальное время (ISO строка)
+   * - endTime: конечное время (ISO строка)
+   * - limit: максимальное количество записей (по умолчанию 10000)
+   */
   router.get('/node/:nodeId', async (req, res) => {
     try {
       const { nodeId } = req.params;
@@ -190,7 +216,17 @@ export default function historyRoutes(prisma) {
     }
   });
 
-  // Получить исторические данные для всей системы
+  /**
+   * GET /api/history/system
+   * Получить исторические данные для всей системы (всех узлов связи)
+   * 
+   * Данные группируются по времени и возвращаются в табличном формате.
+   * 
+   * Query параметры:
+   * - startTime: начальное время (ISO строка)
+   * - endTime: конечное время (ISO строка)
+   * - limit: максимальное количество записей (по умолчанию 10000)
+   */
   router.get('/system', async (req, res) => {
     try {
       const { startTime, endTime, limit = 10000 } = req.query;
@@ -307,7 +343,17 @@ export default function historyRoutes(prisma) {
     }
   });
 
-  // Получить исторические данные для устройства
+  /**
+   * GET /api/history/device/:deviceId
+   * Получить исторические данные для конкретного устройства
+   * 
+   * Данные группируются по времени и возвращаются в табличном формате.
+   * 
+   * Query параметры:
+   * - startTime: начальное время (ISO строка)
+   * - endTime: конечное время (ISO строка)
+   * - limit: максимальное количество записей (по умолчанию 1000)
+   */
   router.get('/device/:deviceId', async (req, res) => {
     try {
       const { deviceId } = req.params;

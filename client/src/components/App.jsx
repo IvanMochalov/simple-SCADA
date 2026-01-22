@@ -1,3 +1,16 @@
+/**
+ * Главный компонент приложения
+ * 
+ * Настраивает маршрутизацию и провайдеры контекста:
+ * - NotificationProvider: для уведомлений пользователя
+ * - WebSocketProvider: для получения данных в реальном времени
+ * 
+ * Маршруты:
+ * - / - Конфигурация (ConnectionTree)
+ * - /realtime - Реальное время (RealTimeView)
+ * - /history - История (HistoryView)
+ */
+
 import React from 'react'
 import {Navigate, createBrowserRouter, RouterProvider} from 'react-router-dom'
 import Layout from './Layout.jsx'

@@ -1,9 +1,19 @@
+/**
+ * REST API маршруты для управления тегами Modbus
+ * 
+ * Тег представляет собой регистр Modbus устройства, который опрашивается
+ * для чтения/записи значений. Каждый тег привязан к устройству.
+ */
+
 import express from 'express';
 
 export default function tagRoutes(prisma, modbusManager) {
   const router = express.Router();
 
-  // Получить все теги
+  /**
+   * GET /api/tags
+   * Получить список всех тегов с информацией об устройстве и узле связи
+   */
   router.get('/', async (req, res) => {
     try {
       const tags = await prisma.tag.findMany({
@@ -22,7 +32,10 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
-  // Получить тег по ID
+  /**
+   * GET /api/tags/:id
+   * Получить конкретный тег по ID
+   */
   router.get('/:id', async (req, res) => {
     try {
       const tag = await prisma.tag.findUnique({
@@ -44,7 +57,20 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
-  // Создать тег
+  /**
+   * POST /api/tags
+   * Создать новый тег
+   * 
+   * Параметры:
+   * - deviceId: ID устройства, к которому привязан тег
+   * - name: название тега
+   * - address: адрес Modbus регистра
+   * - registerType: тип регистра ('HOLDING_REGISTER', 'INPUT_REGISTER', 'COIL', 'DISCRETE_INPUT')
+   * - deviceDataType: тип данных в устройстве ('int16', 'int32', 'float' и т.д.)
+   * - serverDataType: тип данных на сервере ('int32', 'float' и т.д.)
+   * - accessType: тип доступа ('ReadOnly' или 'ReadWrite')
+   * - enabled: включен ли тег в опрос (по умолчанию true)
+   */
   router.post('/', async (req, res) => {
     try {
       const {
@@ -78,7 +104,7 @@ export default function tagRoutes(prisma, modbusManager) {
         }
       });
 
-      // Перезапускаем соединение узла
+      // Перезапускаем соединение узла, чтобы новый тег начал опрашиваться
       const device = await prisma.device.findUnique({
         where: {id: deviceId},
         include: {connectionNode: true}
@@ -94,7 +120,12 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
-  // Обновить тег
+  /**
+   * PUT /api/tags/:id
+   * Обновить параметры тега
+   * 
+   * При изменении параметров тега необходимо перезапустить соединение узла
+   */
   router.put('/:id', async (req, res) => {
     try {
       const {
@@ -142,8 +173,8 @@ export default function tagRoutes(prisma, modbusManager) {
         }
       });
 
+      // Перезапускаем соединение узла для применения изменений
       if (modbusManager.isRunning) {
-        // Перезапускаем соединение узла
         await modbusManager.reloadConnection(tag.device.connectionNodeId);
       }
 
@@ -153,7 +184,10 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
-  // Удалить тег
+  /**
+   * DELETE /api/tags/:id
+   * Удалить тег
+   */
   router.delete('/:id', async (req, res) => {
     try {
       const tag = await prisma.tag.findUnique({
@@ -177,8 +211,8 @@ export default function tagRoutes(prisma, modbusManager) {
         where: {id: req.params.id}
       });
 
+      // Перезапускаем соединение узла после удаления тега
       if (modbusManager.isRunning) {
-        // Перезапускаем соединение узла
         await modbusManager.reloadConnection(connectionNodeId);
       }
 
@@ -188,7 +222,16 @@ export default function tagRoutes(prisma, modbusManager) {
     }
   });
 
-  // Записать значение в тег
+  /**
+   * POST /api/tags/:id/write
+   * Записать значение в тег Modbus устройства
+   * 
+   * Работает только для тегов с типом доступа 'ReadWrite'.
+   * Значение преобразуется согласно типу данных тега.
+   * 
+   * Параметры:
+   * - value: значение для записи (число)
+   */
   router.post('/:id/write', async (req, res) => {
     try {
       const {id} = req.params;
@@ -203,10 +246,10 @@ export default function tagRoutes(prisma, modbusManager) {
     } catch (error) {
       console.error('Error writing tag value:', error);
       
-      // Передаем информацию об ошибке, включая modbusCode если он есть
+      // Передаем детальную информацию об ошибке, включая Modbus код ошибки
       const errorResponse = {
         error: error.message,
-        modbusCode: error.modbusCode,
+        modbusCode: error.modbusCode, // Код ошибки Modbus (если есть)
         originalError: error.originalError ? {
           message: error.originalError.message,
           name: error.originalError.name
