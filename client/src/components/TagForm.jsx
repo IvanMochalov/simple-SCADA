@@ -14,6 +14,7 @@ export default function TagForm({tagId, deviceId, onClose, onSave}) {
     deviceDataType: 'int16',
     serverDataType: 'int32',
     accessType: 'ReadOnly',
+    scaleFactor: 1.0,
     enabled: true
   })
   const [loading, setLoading] = useState(false)
@@ -33,7 +34,11 @@ export default function TagForm({tagId, deviceId, onClose, onSave}) {
   const loadTag = async () => {
     try {
       const response = await api.getTagById(tagId)
-      setFormData(response.data)
+      // Убеждаемся, что scaleFactor установлен (по умолчанию 1.0)
+      setFormData({
+        ...response.data,
+        scaleFactor: response.data.scaleFactor !== undefined ? response.data.scaleFactor : 1.0
+      })
     } catch (error) {
       console.error('Error loading tag:', error)
       notification.error('Ошибка загрузки тега', error.message || "")
@@ -47,6 +52,10 @@ export default function TagForm({tagId, deviceId, onClose, onSave}) {
 
       const requestFormData = {
         ...formData,
+        // Убеждаемся, что scaleFactor передается как число
+        scaleFactor: typeof formData.scaleFactor === 'string' 
+          ? parseFloat(formData.scaleFactor) 
+          : (formData.scaleFactor || 1.0)
       }
 
       if (tagId) {
@@ -149,6 +158,20 @@ export default function TagForm({tagId, deviceId, onClose, onSave}) {
             <Select.Option value="uint32">uint32</Select.Option>
             <Select.Option value="uint16">uint16</Select.Option>
             <Select.Option value="float">float</Select.Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          label="Множитель"
+          name="scaleFactor"
+          rules={[{required: true, message: 'Выберите множитель'}]}
+          tooltip="Коэффициент масштабирования значения. Например, 0.1 означает деление на 10 (242 → 24.2)"
+        >
+          <Select>
+            <Select.Option value={0.01}>0.01 (деление на 100)</Select.Option>
+            <Select.Option value={0.1}>0.1 (деление на 10)</Select.Option>
+            <Select.Option value={1.0}>1.0 (без масштабирования)</Select.Option>
+            <Select.Option value={10.0}>10.0 (умножение на 10)</Select.Option>
           </Select>
         </Form.Item>
 

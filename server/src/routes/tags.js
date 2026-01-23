@@ -69,6 +69,7 @@ export default function tagRoutes(prisma, modbusManager) {
    * - deviceDataType: тип данных в устройстве ('int16', 'int32', 'float' и т.д.)
    * - serverDataType: тип данных на сервере ('int32', 'float' и т.д.)
    * - accessType: тип доступа ('ReadOnly' или 'ReadWrite')
+   * - scaleFactor: коэффициент масштабирования (по умолчанию 1.0, например 0.1 для деления на 10)
    * - enabled: включен ли тег в опрос (по умолчанию true)
    */
   router.post('/', async (req, res) => {
@@ -81,6 +82,7 @@ export default function tagRoutes(prisma, modbusManager) {
         deviceDataType,
         serverDataType,
         accessType,
+        scaleFactor,
         enabled
       } = req.body;
 
@@ -93,6 +95,7 @@ export default function tagRoutes(prisma, modbusManager) {
           deviceDataType: deviceDataType || 'int16',
           serverDataType: serverDataType || 'int32',
           accessType: accessType || 'ReadOnly',
+          scaleFactor: scaleFactor !== undefined ? scaleFactor : 1.0,
           enabled: enabled !== undefined ? enabled : true
         },
         include: {
@@ -135,6 +138,7 @@ export default function tagRoutes(prisma, modbusManager) {
         deviceDataType,
         serverDataType,
         accessType,
+        scaleFactor,
         enabled
       } = req.body;
 
@@ -153,17 +157,24 @@ export default function tagRoutes(prisma, modbusManager) {
         return res.status(404).json({error: 'Tag not found'});
       }
 
+      const updateData = {
+        name,
+        address,
+        registerType,
+        deviceDataType,
+        serverDataType,
+        accessType,
+        enabled
+      };
+
+      // Добавляем scaleFactor только если он передан
+      if (scaleFactor !== undefined) {
+        updateData.scaleFactor = scaleFactor;
+      }
+
       const updatedTag = await prisma.tag.update({
         where: {id: req.params.id},
-        data: {
-          name,
-          address,
-          registerType,
-          deviceDataType,
-          serverDataType,
-          accessType,
-          enabled
-        },
+        data: updateData,
         include: {
           device: {
             include: {

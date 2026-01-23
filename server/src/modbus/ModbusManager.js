@@ -556,8 +556,12 @@ export class ModbusManager {
               if (holdingRegistersToRead === 2) {
                 // Конвертируем два регистра в float
                 value = this.convertRegistersToFloat(holdingResult.data[0], holdingResult.data[1]);
+                // Применяем масштабирование для float, если указано
+                if (tag.scaleFactor && tag.scaleFactor !== 1.0) {
+                  value = value * tag.scaleFactor;
+                }
               } else {
-                value = this.convertValue(holdingResult.data[0], tag.deviceDataType, tag.serverDataType);
+                value = this.convertValue(holdingResult.data[0], tag.deviceDataType, tag.serverDataType, tag.scaleFactor || 1.0);
               }
               break;
 
@@ -572,8 +576,12 @@ export class ModbusManager {
               if (inputRegistersToRead === 2) {
                 // Конвертируем два регистра в float
                 value = this.convertRegistersToFloat(inputResult.data[0], inputResult.data[1]);
+                // Применяем масштабирование для float, если указано
+                if (tag.scaleFactor && tag.scaleFactor !== 1.0) {
+                  value = value * tag.scaleFactor;
+                }
               } else {
-                value = this.convertValue(inputResult.data[0], tag.deviceDataType, tag.serverDataType);
+                value = this.convertValue(inputResult.data[0], tag.deviceDataType, tag.serverDataType, tag.scaleFactor || 1.0);
               }
               break;
 
@@ -661,18 +669,25 @@ export class ModbusManager {
     }
   }
 
-  convertValue(rawValue, deviceDataType, serverDataType) {
+  convertValue(rawValue, deviceDataType, serverDataType, scaleFactor = 1.0) {
+    let value = rawValue;
+
     // Простая конвертация для int16 -> int32
     if (deviceDataType === 'int16' && serverDataType === 'int32') {
       // Преобразуем int16 в int32 (знак сохраняется)
       if (rawValue >= 32768) {
-        return rawValue - 65536; // Отрицательное число
+        value = rawValue - 65536; // Отрицательное число
+      } else {
+        value = rawValue;
       }
-      return rawValue;
     }
 
-    // Для других типов пока возвращаем как есть
-    return rawValue;
+    // Применяем масштабирование
+    if (scaleFactor !== 1.0) {
+      value = value * scaleFactor;
+    }
+
+    return value;
   }
 
   async updateNodeConnectionStatus(nodeId, status, errorMessage) {
@@ -940,6 +955,12 @@ export class ModbusManager {
         }
       }
 
+      // Применяем обратное масштабирование перед записью
+      // Если scaleFactor = 0.1 (значит при чтении делим на 10), то при записи умножаем на 10
+      if (tag.scaleFactor && tag.scaleFactor !== 1.0) {
+        writeValue = writeValue / tag.scaleFactor;
+      }
+
       // Записываем значение в зависимости от типа регистра
       switch (tag.registerType) {
         case 'HOLDING_REGISTER':
@@ -1018,9 +1039,13 @@ export class ModbusManager {
         if (isFloat) {
           const readResult = await client.readHoldingRegisters(tag.address, 2);
           readValue = this.convertRegistersToFloat(readResult.data[0], readResult.data[1]);
+          // Применяем масштабирование для float, если указано
+          if (tag.scaleFactor && tag.scaleFactor !== 1.0) {
+            readValue = readValue * tag.scaleFactor;
+          }
         } else {
           const readResult = await client.readHoldingRegisters(tag.address, 1);
-          readValue = this.convertValue(readResult.data[0], tag.deviceDataType, tag.serverDataType);
+          readValue = this.convertValue(readResult.data[0], tag.deviceDataType, tag.serverDataType, tag.scaleFactor || 1.0);
         }
       } else if (tag.registerType === 'COIL') {
         const readResult = await client.readCoils(tag.address, 1);
