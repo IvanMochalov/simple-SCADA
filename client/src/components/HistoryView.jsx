@@ -405,12 +405,16 @@ export default function HistoryView() {
   };
 
   // Форматирует значение тега для отображения
-  const formatTagValue = (value) => {
+  const formatTagValue = (value, serverDataType = null) => {
     if (value === null || value === undefined) {
       return '—'
     }
     // Если значение - число, форматируем его
     if (isNumeric(value)) {
+      // Для int32 всегда показываем два знака после запятой
+      if (serverDataType === 'int32') {
+        return Number(value).toFixed(2)
+      }
       // Если число целое - показываем без десятичной части
       // Если дробное - ограничиваем до 2 знаков после запятой
       return value % 1 === 0 ? value.toString() : Number(value).toFixed(2)
@@ -475,7 +479,7 @@ export default function HistoryView() {
             key: `tag_${tagKey}`,
             width: 150,
             render: (value) => {
-              const formattedValue = formatTagValue(value);
+              const formattedValue = formatTagValue(value, tag.serverDataType);
               return (
                 <span className="value-cell" style={{
                   color: value !== null && value !== undefined ? '#1890ff' : '#999',
@@ -907,9 +911,20 @@ export default function HistoryView() {
                     <Tooltip
                       formatter={(value, name) => {
                         if (value === null || value === undefined) return '—';
-                        return isNumeric(value)
-                          ? (value % 1 === 0 ? value.toString() : Number(value).toFixed(2))
-                          : value;
+                        if (isNumeric(value)) {
+                          // Для int32 всегда показываем два знака после запятой
+                          // Находим тег по displayName для определения типа данных
+                          const tag = transformedData.tags.find(t => {
+                            const tagDisplayName = t.displayName || `${t.nodeName || ''} → ${t.deviceName || ''} → ${t.tagName || t.name || ''}`;
+                            return tagDisplayName === name;
+                          });
+                          if (tag && tag.serverDataType === 'int32') {
+                            return Number(value).toFixed(2);
+                          }
+                          // Для остальных чисел: если целое - без десятичной части, иначе 2 знака
+                          return value % 1 === 0 ? value.toString() : Number(value).toFixed(2);
+                        }
+                        return value;
                       }}
                       labelFormatter={(label) => `Время: ${label}`}
                     />

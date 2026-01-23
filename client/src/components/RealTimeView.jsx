@@ -106,12 +106,16 @@ export default function RealTimeView() {
   }
 
   // Форматирует значение тега для отображения
-  const formatTagValue = (value) => {
+  const formatTagValue = (value, serverDataType = null) => {
     if (value === null || value === undefined) {
       return '—'
     }
     // Если значение - число, форматируем его
     if (isNumeric(value)) {
+      // Для int32 всегда показываем два знака после запятой
+      if (serverDataType === 'int32') {
+        return Number(value).toFixed(2)
+      }
       // Если число целое - показываем без десятичной части
       // Если дробное - ограничиваем до 2 знаков после запятой
       return value % 1 === 0 ? value.toString() : Number(value).toFixed(2)
@@ -163,7 +167,7 @@ export default function RealTimeView() {
   }
 
   const handleTagValueChange = async (tag, tagValue, str) => {
-    const originalValue = formatTagValue(tagValue.value);
+    const originalValue = formatTagValue(tagValue.value, tag.serverDataType);
 
     // Валидация: проверяем, что введено число
     const trimmedStr = str.trim();
@@ -223,7 +227,7 @@ export default function RealTimeView() {
     try {
       await api.writeTagValue(tag.id, numValue);
       notification.success(`Значение тега "${tag.name}" успешно записано`);
-      return formatTagValue(numValue);
+      return formatTagValue(numValue, tag.serverDataType);
     } catch (error) {
       console.error('Error writing tag value:', error);
       const errorData = error.response?.data || {};
@@ -345,12 +349,12 @@ export default function RealTimeView() {
               }}
               className={"tag-value"}
             >
-              {formatTagValue(tagValue.value)}
+              {formatTagValue(tagValue.value, tag.serverDataType)}
             </Text>
           </Flex>
         ) : (
           <Text type="success" style={{fontSize: '2rem'}}>
-            {formatTagValue(tagValue.value)}
+            {formatTagValue(tagValue.value, tag.serverDataType)}
           </Text>
         )}
         {tagValue.error && (
