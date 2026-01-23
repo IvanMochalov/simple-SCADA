@@ -18,6 +18,7 @@ import deviceRoutes from './routes/devices.js';
 import tagRoutes from './routes/tags.js';
 import historyRoutes from './routes/history.js';
 import modbusRoutes from './routes/modbus.js';
+import settingsRoutes from './routes/settings.js';
 
 // Инициализация базы данных Prisma
 const prisma = new PrismaClient();
@@ -42,6 +43,7 @@ app.use('/api/devices', deviceRoutes(prisma, modbusManager)); // Управле�
 app.use('/api/tags', tagRoutes(prisma, modbusManager)); // Управление тегами
 app.use('/api/history', historyRoutes(prisma)); // Получение исторических данных
 app.use('/api/modbus', modbusRoutes(modbusManager)); // Управление Modbus Manager
+app.use('/api/settings', settingsRoutes(prisma, modbusManager)); // Управление настройками системы
 
 // Обработка WebSocket подключений
 wss.on('connection', (ws) => {

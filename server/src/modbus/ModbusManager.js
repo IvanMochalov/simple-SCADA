@@ -21,6 +21,7 @@ export class ModbusManager {
     this.wss = wss; // WebSocket сервер для отправки обновлений клиентам
     
     // Хранилище активных Modbus соединений: connectionNodeId -> { client, devices }
+    this.archiveInterval = 60000; // Интервал архивации по умолчанию (60 секунд)
     this.connections = new Map();
     
     // Интервалы опроса устройств: deviceId -> interval ID
@@ -87,23 +88,12 @@ export class ModbusManager {
       }
     }
 
-    // Запускаем периодический сбор исторических данных (каждую минуту)
-    // Проверяем, есть ли хотя бы один активный тег в системе
-    this.historyInterval = setInterval(() => {
-      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(node =>
-        node.enabled &&
-        node.devices &&
-        node.devices.some(device =>
-          device.enabled &&
-          device.tags &&
-          device.tags.some(tag => tag.enabled)
-        )
-      );
+    // Загружаем интервал архивации из настроек
+    await this.loadArchiveInterval();
 
-      if (isSomeNodeHasDeviceWithTagEnabled) {
-        this.collectHistoryData();
-      }
-    }, 60000); // 60 секунд
+    // Запускаем периодический сбор исторических данных
+    // Проверяем, есть ли хотя бы один активный тег в системе
+    this.startHistoryCollection();
 
     console.log('Modbus Manager started');
   }
@@ -146,10 +136,81 @@ export class ModbusManager {
     this.connections.clear();
 
     // Останавливаем интервал сбора исторических данных
+    this.stopHistoryCollection();
+  }
+
+  /**
+   * Загружает интервал архивации из настроек БД
+   */
+  async loadArchiveInterval() {
+    try {
+      const setting = await this.prisma.systemSettings.findUnique({
+        where: { key: 'archiveInterval' }
+      });
+
+      if (setting) {
+        this.archiveInterval = parseInt(setting.value) || 60000;
+      } else {
+        // Если настройка не найдена, создаем с дефолтным значением
+        await this.prisma.systemSettings.create({
+          data: {
+            key: 'archiveInterval',
+            value: '60000'
+          }
+        });
+        this.archiveInterval = 60000;
+      }
+    } catch (error) {
+      console.error('Error loading archive interval:', error);
+      this.archiveInterval = 60000; // Используем значение по умолчанию при ошибке
+    }
+  }
+
+  /**
+   * Запускает сбор исторических данных с текущим интервалом
+   */
+  startHistoryCollection() {
+    // Останавливаем предыдущий интервал, если он существует
+    this.stopHistoryCollection();
+
+    // Запускаем новый интервал с текущим значением archiveInterval
+    this.historyInterval = setInterval(() => {
+      // Проверяем, есть ли хотя бы один активный тег в системе
+      const nodes = Array.from(this.connections.values());
+      const isSomeNodeHasDeviceWithTagEnabled = nodes.some(conn => {
+        const devices = Array.from(conn.devices.values());
+        return devices.some(device =>
+          device.enabled &&
+          device.tags &&
+          device.tags.length > 0 &&
+          device.tags.some(tag => tag.enabled)
+        );
+      });
+
+      if (isSomeNodeHasDeviceWithTagEnabled) {
+        this.collectHistoryData();
+      }
+    }, this.archiveInterval);
+  }
+
+  /**
+   * Останавливает сбор исторических данных
+   */
+  stopHistoryCollection() {
     if (this.historyInterval) {
       clearInterval(this.historyInterval);
       this.historyInterval = null;
     }
+  }
+
+  /**
+   * Обновляет интервал архивации и перезапускает сбор данных
+   * @param {number} interval - Новый интервал в миллисекундах
+   */
+  async updateArchiveInterval(interval) {
+    this.archiveInterval = interval;
+    this.startHistoryCollection();
+    console.log(`Archive interval updated to ${interval} ms`);
   }
 
   /**
@@ -220,6 +281,10 @@ export class ModbusManager {
         isPolling: false // Флаг, что идет опрос
       };
 
+      // КРИТИЧНО: Добавляем соединение в Map СРАЗУ после создания
+      // Это предотвращает race condition, когда запись происходит до завершения инициализации
+      this.connections.set(node.id, connection);
+
       // Запускаем опрос только для включенных устройств с тегами
       const enabledDevices = node.devices.filter(device =>
         device.enabled &&
@@ -253,14 +318,29 @@ export class ModbusManager {
         }, 200);
       }
 
-      this.connections.set(node.id, connection);
-
       // Обновляем статус подключения узла
       await this.updateNodeConnectionStatus(node.id, 'connected', null);
 
       console.log(`Connection started for node ${node.name} with ${enabledDevices.length} enabled devices`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
+      
+      // Удаляем соединение из Map, если оно было добавлено, но инициализация не завершилась
+      if (this.connections.has(node.id)) {
+        const failedConnection = this.connections.get(node.id);
+        // Закрываем клиент, если он был создан
+        if (failedConnection && failedConnection.client) {
+          try {
+            if (failedConnection.client.isOpen) {
+              await failedConnection.client.close();
+            }
+          } catch (closeError) {
+            // Игнорируем ошибки при закрытии
+          }
+        }
+        this.connections.delete(node.id);
+      }
+      
       let errorMessage = "";
       if (error.message && error.message.includes('Access denied')) {
         errorMessage = `Доступ к COM порту ${node.name}: ${node.comPort} запрещен. Убедитесь, что порт не занят другим приложением.`;
@@ -701,9 +781,31 @@ export class ModbusManager {
       }
 
       // Находим соединение узла связи
-      const connection = this.connections.get(tag.device.connectionNodeId);
-      if (!connection || !connection.client) {
-        throw new Error('Узел связи не подключен');
+      // Если соединение не найдено сразу, делаем небольшую задержку и повторную попытку
+      // Это решает проблему race condition при быстром запуске записи после старта Modbus Manager
+      let connection = this.connections.get(tag.device.connectionNodeId);
+      
+      if (!connection) {
+        // Небольшая задержка для случая, когда соединение еще инициализируется
+        await new Promise(resolve => setTimeout(resolve, 100));
+        connection = this.connections.get(tag.device.connectionNodeId);
+      }
+      
+      if (!connection) {
+        // Проверяем, запущен ли Modbus Manager
+        if (!this.isRunning) {
+          throw new Error('Modbus Manager не запущен. Запустите Modbus Manager перед записью значений.');
+        }
+        throw new Error(`Узел связи не найден. Убедитесь, что узел "${tag.device.connectionNode?.name || tag.device.connectionNodeId}" подключен и Modbus Manager запущен.`);
+      }
+      
+      if (!connection.client) {
+        throw new Error('Modbus клиент не инициализирован для узла связи');
+      }
+      
+      // Проверяем, что клиент действительно открыт и готов к работе
+      if (!connection.client.isOpen) {
+        throw new Error('COM порт узла связи не открыт. Попробуйте переподключить узел.');
       }
 
       const client = connection.client;

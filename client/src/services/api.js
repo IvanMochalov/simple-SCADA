@@ -170,4 +170,19 @@ export const api = {
    * Остановить Modbus Manager (остановить опрос и закрыть соединения)
    */
   stopModbus: async () => await axios.post(`${API_BASE}/modbus/stop`),
+
+  // ========== API НАСТРОЕК СИСТЕМЫ (Settings) ==========
+  
+  /**
+   * GET /api/settings/archive-interval
+   * Получить текущий интервал архивации данных
+   */
+  getArchiveInterval: async () => await axios.get(`${API_BASE}/settings/archive-interval`),
+
+  /**
+   * PUT /api/settings/archive-interval
+   * Установить интервал архивации данных
+   * @param {number} interval - интервал в миллисекундах
+   */
+  setArchiveInterval: async (interval) => await axios.put(`${API_BASE}/settings/archive-interval`, { interval }),
 };

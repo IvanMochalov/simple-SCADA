@@ -8,10 +8,13 @@
  * - Область контента для отображения дочерних компонентов
  */
 
-import React from 'react'
+import React, {useState, useEffect} from 'react'
 import {useNavigate, useLocation, Outlet} from 'react-router-dom'
-import {Layout as AntLayout, Menu, Typography, Badge, Space} from 'antd'
+import {Layout as AntLayout, Menu, Typography, Badge, Space, Button, Modal, Form, Select} from 'antd'
+import {SettingOutlined} from '@ant-design/icons'
 import {useWebSocket} from '../context/WebSocketContext'
+import {api} from '../services/api'
+import {useNotification} from '../context/NotificationContext'
 
 const {Header, Content} = AntLayout
 const {Title} = Typography
@@ -20,6 +23,63 @@ export default function Layout() {
   const location = useLocation()
   const navigate = useNavigate()
   const {isConnected, state} = useWebSocket()
+  const notification = useNotification()
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false)
+  const [archiveInterval, setArchiveInterval] = useState(60000)
+  const [loading, setLoading] = useState(false)
+  const [form] = Form.useForm()
+
+  // Загружаем текущий интервал архивации при открытии модального окна
+  useEffect(() => {
+    if (settingsModalVisible) {
+      loadArchiveInterval()
+    }
+  }, [settingsModalVisible])
+
+  const loadArchiveInterval = async () => {
+    try {
+      const {data} = await api.getArchiveInterval()
+      setArchiveInterval(data.interval)
+      form.setFieldsValue({ interval: data.interval })
+    } catch (error) {
+      console.error('Error loading archive interval:', error)
+      notification.error('Ошибка загрузки настроек', error.message || '')
+    }
+  }
+
+  const handleSettingsOk = async () => {
+    try {
+      const values = await form.validateFields()
+      setLoading(true)
+      await api.setArchiveInterval(values.interval)
+      setArchiveInterval(values.interval)
+      notification.success('Интервал архивации успешно обновлен')
+      setSettingsModalVisible(false)
+    } catch (error) {
+      console.error('Error saving archive interval:', error)
+      if (error.errorFields) {
+        // Ошибка валидации формы
+        return
+      }
+      notification.error('Ошибка сохранения настроек', error.response?.data?.error || error.message || '')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSettingsCancel = () => {
+    setSettingsModalVisible(false)
+    form.resetFields()
+  }
+
+  // Варианты интервала архивации
+  const archiveIntervalOptions = [
+    { value: 5000, label: '5 секунд' },
+    { value: 10000, label: '10 секунд' },
+    { value: 30000, label: '30 секунд' },
+    { value: 60000, label: 'Минута' },
+    { value: 300000, label: '5 минут' },
+  ]
 
   const getSelectedKey = () => {
     if (location.pathname === '/') return ['config']
@@ -68,6 +128,13 @@ export default function Layout() {
         <Space>
           <Badge status={isConnected ? 'success' : 'error'} text={isConnected ? 'Подключено' : 'Отключено'}
                  style={{color: '#fff'}}/>
+          <Button
+            type="text"
+            icon={<SettingOutlined />}
+            onClick={() => setSettingsModalVisible(true)}
+            style={{color: '#fff'}}
+            title="Настройки системы"
+          />
         </Space>
       </Header>
       <Menu
@@ -81,6 +148,33 @@ export default function Layout() {
       <Content style={{padding: '24px', background: '#f0f2f5', flex: 1}}>
         <Outlet/>
       </Content>
+
+      <Modal
+        title="Настройки системы"
+        open={settingsModalVisible}
+        onOk={handleSettingsOk}
+        onCancel={handleSettingsCancel}
+        confirmLoading={loading}
+        okText="Сохранить"
+        cancelText="Отмена"
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ interval: archiveInterval }}
+        >
+          <Form.Item
+            name="interval"
+            label="Интервал архивации данных"
+            rules={[{required: true, message: 'Выберите интервал архивации'}]}
+          >
+            <Select
+              placeholder="Выберите интервал архивации"
+              options={archiveIntervalOptions}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </AntLayout>
   )
 }

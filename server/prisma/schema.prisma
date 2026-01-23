@@ -71,3 +71,11 @@ model HistoryData {
   @@index([deviceId, tagId, timestamp])
   @@index([timestamp])
 }
+
+model SystemSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique // "archiveInterval"
+  value     String   // храним как строку для гибкости
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
