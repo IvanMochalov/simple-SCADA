@@ -1238,7 +1238,8 @@ export class ModbusManager {
                 accessType: tag.accessType,
                 enabled: tag.enabled,
                 deviceDataType: tag.deviceDataType,
-                serverDataType: tag.serverDataType
+                serverDataType: tag.serverDataType,
+                scaleFactor: tag.scaleFactor !== undefined && tag.scaleFactor !== null ? tag.scaleFactor : 1.0
               }))
             }))
           }))

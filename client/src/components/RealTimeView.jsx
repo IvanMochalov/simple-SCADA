@@ -146,7 +146,6 @@ export default function RealTimeView() {
       }
     } catch (error) {
       console.error('Error toggling Modbus Manager:', error)
-      console.log("error: -->", error);
       notification.error('Ошибка при управлении Modbus Manager', error.response?.data?.error || "")
     } finally {
       setIsToggling(false)
@@ -169,26 +168,50 @@ export default function RealTimeView() {
     // Валидация: проверяем, что введено число
     const trimmedStr = str.trim();
     if (!trimmedStr) {
-      notification.error('Ошибка', 'Введите только целое число (только цифры)');
+      notification.error('Ошибка', 'Введите число');
       return originalValue;
     }
 
-    const numValue = tag.serverDataType === 'float'
-      ? parseFloat(trimmedStr)
-      : parseInt(trimmedStr, 10);
+    // Определяем, разрешены ли дробные числа
+    // Разрешаем дробные числа если:
+    // 1. serverDataType === 'float'
+    // 2. scaleFactor существует и не равен 1.0 (потому что после обратного масштабирования может получиться дробное)
+    // Обрабатываем scaleFactor как число (может быть строкой из БД)
+    let scaleFactor = 1.0;
+    if (tag.scaleFactor !== undefined && tag.scaleFactor !== null) {
+      scaleFactor = typeof tag.scaleFactor === 'string' ? parseFloat(tag.scaleFactor) : Number(tag.scaleFactor);
+      if (isNaN(scaleFactor)) scaleFactor = 1.0;
+    }
+    
+    const allowFloat = tag.serverDataType === 'float' || scaleFactor !== 1.0;
+    
+    // Заменяем запятую на точку для правильного парсинга
+    const normalizedStr = trimmedStr.replace(',', '.');
+    
+    // Сначала проверяем формат строки, потом парсим
+    // Для целых чисел проверяем, что строка содержит только цифры (и минус в начале)
+    // Для дробных чисел проверяем, что это валидное число с точкой/запятой
+    if (!allowFloat) {
+      if (!/^-?\d+$/.test(trimmedStr)) {
+        notification.error('Ошибка', 'Введите только целое число');
+        return originalValue;
+      }
+    } else {
+      // Для дробных чисел проверяем валидный формат числа (точка или запятая)
+      // Разрешаем: "25.60", "25,60", "25", "-25.5", ".5", "0.5", "-.5"
+      // Регулярное выражение: необязательный минус, затем цифры, затем точка/запятая и цифры, или просто цифры
+      if (!/^-?(\d+([.,]\d+)?|([.,]\d+))$/.test(trimmedStr)) {
+        notification.error('Ошибка', 'Введите корректное число');
+        return originalValue;
+      }
+    }
+
+    const numValue = allowFloat ? parseFloat(normalizedStr) : parseInt(normalizedStr, 10);
 
     // Проверка на валидное число
     if (isNaN(numValue)) {
-      notification.error('Ошибка', 'Введите только целое число (только цифры)');
+      notification.error('Ошибка', allowFloat ? 'Введите число' : 'Введите только целое число');
       return originalValue;
-    }
-
-    // Для целых чисел проверяем, что строка содержит только цифры (и минус в начале)
-    if (tag.serverDataType !== 'float') {
-      if (!/^-?\d+$/.test(trimmedStr)) {
-        notification.error('Ошибка', 'Введите только целое число (только цифры)');
-        return originalValue;
-      }
     }
 
     // Проверяем, изменилось ли значение
