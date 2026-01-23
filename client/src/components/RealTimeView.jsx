@@ -410,6 +410,7 @@ export default function RealTimeView() {
           {enabledNodes.map(node => (
             <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
               <Collapse
+                styles={{header: {alignItems: "center"}}}
                 activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                 onChange={() => toggleNode(node.id)}
                 ghost

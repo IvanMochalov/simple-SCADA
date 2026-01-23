@@ -213,7 +213,7 @@ export default function ConnectionTree() {
             {nodes.map(node => (
               <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
                 <Collapse
-                  styles={{header: {alignItems: "center"}}}
+                  styles={{header: {alignItems: "center"}, body: {paddingTop: "0"}}}
                   activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                   onChange={() => toggleNode(node.id)}
                   ghost
