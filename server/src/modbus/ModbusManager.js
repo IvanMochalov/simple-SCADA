@@ -1,6 +1,6 @@
 /**
  * ModbusManager - основной класс для управления Modbus RTU соединениями
- * 
+ *
  * Отвечает за:
  * - Управление соединениями с COM портами (узлы связи)
  * - Опрос Modbus устройств по расписанию
@@ -8,7 +8,7 @@
  * - Сбор исторических данных
  * - Запись значений в теги
  * - Отправку обновлений через WebSocket
- * 
+ *
  * Использует библиотеку modbus-serial для работы с Modbus RTU протоколом.
  */
 
@@ -19,27 +19,27 @@ export class ModbusManager {
   constructor(prisma, wss) {
     this.prisma = prisma; // Prisma клиент для работы с БД
     this.wss = wss; // WebSocket сервер для отправки обновлений клиентам
-    
+
     // Хранилище активных Modbus соединений: connectionNodeId -> { client, devices }
     this.archiveInterval = 60000; // Интервал архивации по умолчанию (60 секунд)
     this.connections = new Map();
-    
+
     // Интервалы опроса устройств: deviceId -> interval ID
     this.pollingIntervals = new Map();
-    
+
     // Интервал сбора исторических данных (каждую минуту)
     this.historyInterval = null;
-    
+
     // Флаг работы Modbus Manager
     this.isRunning = false;
-    
+
     // Кэш значений тегов: deviceId -> { tagId -> { value, timestamp } }
     this.tagValuesCache = new Map();
-    
+
     // Блокировки для предотвращения параллельного опроса одного устройства
     // deviceId -> Promise (текущий опрос)
     this.devicePollingLocks = new Map();
-    
+
     // Блокировки для предотвращения параллельной записи в одно устройство
     // deviceId -> Promise (текущая запись)
     this.deviceWriteLocks = new Map();
@@ -47,13 +47,13 @@ export class ModbusManager {
 
   /**
    * Запуск Modbus Manager
-   * 
+   *
    * Выполняет:
    * 1. Загрузку всех активных узлов связи с устройствами и тегами из БД
    * 2. Инициализацию Modbus соединений для каждого узла
    * 3. Запуск периодического опроса устройств
    * 4. Запуск сбора исторических данных (каждую минуту)
-   * 
+   *
    * Если какой-то узел не удалось запустить, работа продолжается с остальными.
    */
   async start() {
@@ -100,7 +100,7 @@ export class ModbusManager {
 
   /**
    * Остановка Modbus Manager
-   * 
+   *
    * Выполняет:
    * 1. Остановку всех интервалов опроса устройств
    * 2. Закрытие всех Modbus соединений
@@ -145,7 +145,7 @@ export class ModbusManager {
   async loadArchiveInterval() {
     try {
       const setting = await this.prisma.systemSettings.findUnique({
-        where: { key: 'archiveInterval' }
+        where: {key: 'archiveInterval'}
       });
 
       if (setting) {
@@ -215,9 +215,9 @@ export class ModbusManager {
 
   /**
    * Инициализация Modbus соединения для узла связи
-   * 
+   *
    * @param {Object} node - узел связи с настройками COM порта
-   * 
+   *
    * Выполняет:
    * 1. Загрузку устройств и тегов узла (если не загружены)
    * 2. Создание Modbus RTU клиента
@@ -303,7 +303,7 @@ export class ModbusManager {
       if (enabledDevices.length > 0) {
         // Используем минимальный интервал опроса среди всех устройств
         const minPollInterval = Math.min(...enabledDevices.map(d => d.pollInterval || 1000));
-        
+
         // Запускаем единый интервал для последовательного опроса всех устройств
         const nodePollingInterval = setInterval(async () => {
           await this.pollNodeDevices(node.id, connection);
@@ -324,7 +324,7 @@ export class ModbusManager {
       console.log(`Connection started for node ${node.name} with ${enabledDevices.length} enabled devices`);
     } catch (error) {
       console.error(`Error starting connection for node ${node.name}:`, error);
-      
+
       // Удаляем соединение из Map, если оно было добавлено, но инициализация не завершилась
       if (this.connections.has(node.id)) {
         const failedConnection = this.connections.get(node.id);
@@ -340,7 +340,7 @@ export class ModbusManager {
         }
         this.connections.delete(node.id);
       }
-      
+
       let errorMessage = "";
       if (error.message && error.message.includes('Access denied')) {
         errorMessage = `Доступ к COM порту ${node.name}: ${node.comPort} запрещен. Убедитесь, что порт не занят другим приложением.`;
@@ -371,7 +371,7 @@ export class ModbusManager {
     try {
       // Останавливаем опрос узла (единый интервал для всех устройств)
       this.stopNodePolling(nodeId);
-      
+
       // Также останавливаем опрос отдельных устройств (для обратной совместимости)
       const deviceIds = Array.from(connection.devices.keys());
       for (const deviceId of deviceIds) {
@@ -413,7 +413,7 @@ export class ModbusManager {
 
     // Проверяем, не идет ли запись в какое-либо устройство узла
     // Если идет запись, пропускаем этот цикл опроса для предотвращения конфликтов на RS-485
-    const hasActiveWrite = Array.from(connection.devices.keys()).some(deviceId => 
+    const hasActiveWrite = Array.from(connection.devices.keys()).some(deviceId =>
       this.deviceWriteLocks.has(deviceId)
     );
     if (hasActiveWrite) {
@@ -434,7 +434,7 @@ export class ModbusManager {
       // Опрашиваем устройства последовательно
       for (let i = 0; i < devices.length; i++) {
         const device = devices[i];
-        
+
         // Задержка между опросами устройств для стабильности RS-485
         // Небольшая задержка нужна для очистки буфера и предотвращения конфликтов
         // При интервале 500 мс это критично для стабильности
@@ -784,13 +784,13 @@ export class ModbusManager {
       // Если соединение не найдено сразу, делаем небольшую задержку и повторную попытку
       // Это решает проблему race condition при быстром запуске записи после старта Modbus Manager
       let connection = this.connections.get(tag.device.connectionNodeId);
-      
+
       if (!connection) {
         // Небольшая задержка для случая, когда соединение еще инициализируется
         await new Promise(resolve => setTimeout(resolve, 100));
         connection = this.connections.get(tag.device.connectionNodeId);
       }
-      
+
       if (!connection) {
         // Проверяем, запущен ли Modbus Manager
         if (!this.isRunning) {
@@ -798,11 +798,11 @@ export class ModbusManager {
         }
         throw new Error(`Узел связи не найден. Убедитесь, что узел "${tag.device.connectionNode?.name || tag.device.connectionNodeId}" подключен и Modbus Manager запущен.`);
       }
-      
+
       if (!connection.client) {
         throw new Error('Modbus клиент не инициализирован для узла связи');
       }
-      
+
       // Проверяем, что клиент действительно открыт и готов к работе
       if (!connection.client.isOpen) {
         throw new Error('COM порт узла связи не открыт. Попробуйте переподключить узел.');
@@ -887,7 +887,7 @@ export class ModbusManager {
         });
 
         if (updatedDevice && updatedDevice.enabled && connection.client &&
-            updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
+          updatedDevice.tags && Array.isArray(updatedDevice.tags) && updatedDevice.tags.length > 0) {
           // Обновляем устройство в connection.devices
           // Опрос будет выполняться через pollNodeDevices автоматически
           connection.devices.set(device.id, updatedDevice);
