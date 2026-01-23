@@ -37,7 +37,7 @@ import {
   Drawer,
   Tree,
 } from 'antd';
-import {FilterOutlined} from '@ant-design/icons';
+import {FilterOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {useNotification} from "../context/NotificationContext.jsx";
 import {isNumeric} from "../utils/index.js";
@@ -297,7 +297,7 @@ export default function HistoryView() {
 
   const [hasInitialLoad, setHasInitialLoad] = useState(false); // Флаг для отслеживания начальной загрузки
 
-  const loadHistory = async (silent = false) => {
+  const loadHistory = async (silent = false, isRefresh = false) => {
     setLoading(true)
     try {
       let response;
@@ -312,19 +312,26 @@ export default function HistoryView() {
       if (filterLevel === 'system') {
         response = await api.getHistorySystem(params);
         if (!silent) {
-          notification.success('История всей системы успешно загружена');
+          const message = isRefresh ? 'История всей системы успешно обновлена' : 'История всей системы успешно загружена';
+          notification.success(message);
         }
       } else if (filterLevel === 'node' && selectedNodeId) {
         response = await api.getHistoryNodeById(selectedNodeId, params);
         const node = allNodes.find(n => n.id === selectedNodeId);
         if (!silent) {
-          notification.success(`История узла ${node?.name || selectedNodeId} успешно загружена`);
+          const message = isRefresh 
+            ? `История узла ${node?.name || selectedNodeId} успешно обновлена`
+            : `История узла ${node?.name || selectedNodeId} успешно загружена`;
+          notification.success(message);
         }
       } else if (filterLevel === 'device' && selectedDeviceId) {
         response = await api.getHistoryDeviceById(selectedDeviceId, params);
         const device = devicesForNode.find(d => d.id === selectedDeviceId);
         if (!silent) {
-          notification.success(`История устройства ${device?.name || selectedDeviceId} успешно загружена`);
+          const message = isRefresh
+            ? `История устройства ${device?.name || selectedDeviceId} успешно обновлена`
+            : `История устройства ${device?.name || selectedDeviceId} успешно загружена`;
+          notification.success(message);
         }
       } else {
         notification.error('Выберите необходимые фильтры');
@@ -545,6 +552,15 @@ export default function HistoryView() {
     return false;
   };
 
+  // Обработчик обновления данных
+  const handleRefresh = () => {
+    if (!canLoad()) {
+      notification.error('Выберите необходимые фильтры');
+      return;
+    }
+    loadHistory(false, true); // Обновление с уведомлениями
+  };
+
   if (!isConnected) {
     return (
       <div className="realtime-view">
@@ -576,13 +592,23 @@ export default function HistoryView() {
     <div className="history-view">
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
         <Title level={2} style={{margin: 0}}>Исторические данные</Title>
-        <Button
-          type="primary"
-          icon={<FilterOutlined/>}
-          onClick={() => setFilterDrawerOpen(true)}
-        >
-          Фильтры
-        </Button>
+        <Space>
+          <Button
+            icon={<ReloadOutlined/>}
+            onClick={handleRefresh}
+            disabled={!canLoad() || loading}
+            loading={loading}
+          >
+            Обновить
+          </Button>
+          <Button
+            type="primary"
+            icon={<FilterOutlined/>}
+            onClick={() => setFilterDrawerOpen(true)}
+          >
+            Фильтры
+          </Button>
+        </Space>
       </div>
 
       <Drawer
