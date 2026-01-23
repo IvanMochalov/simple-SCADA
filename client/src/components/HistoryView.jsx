@@ -1,16 +1,16 @@
 /**
  * Компонент просмотра исторических данных
- * 
+ *
  * Функциональность:
  * - Фильтрация данных по уровню: вся система / узел связи / устройство
  * - Фильтрация по временному диапазону (начало и конец)
  * - Отображение данных в таблице с группировкой: Узел → Устройство → Тег
  * - Отображение данных на графике (LineChart) с возможностью выбора тегов
  * - Выбор тегов для графика через иерархическое дерево (Tree)
- * 
+ *
  * Исторические данные собираются автоматически каждую минуту
  * для всех активных тегов подключенных устройств.
- * 
+ *
  * Структура данных:
  * - Таблица: колонки группируются по узлам связи, затем по устройствам, затем по тегам
  * - График: отображает выбранные теги с временной шкалой
@@ -33,9 +33,9 @@ import {
   Typography,
   Empty,
   Form, Alert,
-  Checkbox,
   Drawer,
   Tree,
+  Flex,
 } from 'antd';
 import {FilterOutlined, ReloadOutlined} from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -221,7 +221,7 @@ export default function HistoryView() {
           devices: {}
         };
       }
-      
+
       // Используем комбинацию deviceId и deviceName для уникальности
       const deviceKey = `${deviceId}_${deviceName}`;
       if (!groupedByNode[nodeKey].devices[deviceKey]) {
@@ -263,14 +263,14 @@ export default function HistoryView() {
   const handleTreeCheck = (checkedKeys, info) => {
     // checkedKeys может быть массивом или объектом {checked: [], halfChecked: []}
     const keys = Array.isArray(checkedKeys) ? checkedKeys : checkedKeys.checked || [];
-    
+
     // Фильтруем только ключи тегов (не узлов и устройств)
     // Ключи тегов - это не начинаются с "node_" или "device_"
     const tagKeys = keys.filter(key => {
       const keyStr = String(key);
       return !keyStr.startsWith('node_') && !keyStr.startsWith('device_');
     });
-    
+
     setSelectedTagsForChart(tagKeys);
   };
 
@@ -319,7 +319,7 @@ export default function HistoryView() {
         response = await api.getHistoryNodeById(selectedNodeId, params);
         const node = allNodes.find(n => n.id === selectedNodeId);
         if (!silent) {
-          const message = isRefresh 
+          const message = isRefresh
             ? `История узла ${node?.name || selectedNodeId} успешно обновлена`
             : `История узла ${node?.name || selectedNodeId} успешно загружена`;
           notification.success(message);
@@ -374,7 +374,7 @@ export default function HistoryView() {
       // Проверяем, что выбранные теги все еще существуют в новых данных
       const existingTagIds = transformedData.tags.map(tag => tag.id);
       const validSelectedTags = selectedTagsForChart.filter(id => existingTagIds.includes(id));
-      
+
       // Если нет выбранных тегов или они не совпадают, выбираем все
       if (validSelectedTags.length === 0 && selectedTagsForChart.length > 0) {
         setSelectedTagsForChart(existingTagIds);
@@ -592,7 +592,7 @@ export default function HistoryView() {
     <div className="history-view">
       <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
         <Title level={2} style={{margin: 0}}>Исторические данные</Title>
-        <Space>
+        <Flex gap={"small"}>
           <Button
             icon={<ReloadOutlined/>}
             onClick={handleRefresh}
@@ -608,7 +608,7 @@ export default function HistoryView() {
           >
             Фильтры
           </Button>
-        </Space>
+        </Flex>
       </div>
 
       <Drawer
