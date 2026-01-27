@@ -19,6 +19,20 @@ import tagRoutes from './routes/tags.js';
 import historyRoutes from './routes/history.js';
 import modbusRoutes from './routes/modbus.js';
 import settingsRoutes from './routes/settings.js';
+import {fileURLToPath} from 'url';
+import {dirname, join} from 'path';
+import {existsSync} from 'fs';
+
+// Получаем путь к директории текущего модуля (для ES modules)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Определяем путь к собранному клиенту
+const clientDistPath = join(__dirname, '../../client/dist');
+
+// Проверяем, нужно ли отдавать статические файлы (только в production режиме)
+const isProduction = process.env.NODE_ENV === 'production';
+const shouldServeStatic = isProduction && existsSync(clientDistPath);
 
 // Инициализация базы данных Prisma
 const prisma = new PrismaClient();
@@ -44,6 +58,42 @@ app.use('/api/tags', tagRoutes(prisma, modbusManager)); // Управление 
 app.use('/api/history', historyRoutes(prisma)); // Получение исторических данных
 app.use('/api/modbus', modbusRoutes(modbusManager)); // Управление Modbus Manager
 app.use('/api/settings', settingsRoutes(prisma, modbusManager)); // Управление настройками системы
+
+// Отдача статических файлов клиента (только в production режиме)
+if (shouldServeStatic) {
+  // Отдаем статические файлы из папки dist
+  app.use(express.static(clientDistPath));
+  
+  // Обработка SPA роутинга: все запросы, которые не начинаются с /api или /ws,
+  // должны возвращать index.html для поддержки клиентского роутинга
+  app.get('*', (req, res) => {
+    // Пропускаем API и WebSocket запросы
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws')) {
+      return res.status(404).json({error: 'Not found'});
+    }
+    // Для всех остальных запросов отдаем index.html
+    res.sendFile(join(clientDistPath, 'index.html'));
+  });
+  
+  console.log('✅ Serving static files from:', clientDistPath);
+} else {
+  // В dev режиме не отдаем статические файлы (клиент работает через Vite dev server)
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api') && !req.path.startsWith('/ws')) {
+      return res.status(404).json({
+        error: 'Not found',
+        message: 'В режиме разработки клиент должен работать через Vite dev server (порт 5173)'
+      });
+    }
+    res.status(404).json({error: 'Not found'});
+  });
+  
+  if (isProduction) {
+    console.log('⚠️  Production mode, but client/dist not found. Run "npm run build" first.');
+  } else {
+    console.log('🔧 Development mode: static files served by Vite dev server');
+  }
+}
 
 // Обработка WebSocket подключений
 wss.on('connection', (ws) => {
