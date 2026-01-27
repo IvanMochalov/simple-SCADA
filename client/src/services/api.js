@@ -1,6 +1,6 @@
 /**
  * HTTP клиент для взаимодействия с REST API сервера
- * 
+ *
  * Предоставляет методы для работы с:
  * - Узлами связи (Connection Nodes)
  * - Устройствами Modbus (Devices)
@@ -19,11 +19,10 @@ import axios from "axios";
 export const HOST = import.meta.env.VITE_API_HOST || 'localhost';
 export const BASE = `http://${HOST}:3001`;
 export const API_BASE = `${BASE}/api`;
-export const WS_BASE = `ws://${HOST}:3001`;
 
 export const api = {
   // ========== API УЗЛОВ СВЯЗИ (Connection Nodes) ==========
-  
+
   /**
    * GET /api/connections
    * Получить список всех узлов связи с устройствами и тегами
@@ -59,7 +58,7 @@ export const api = {
   removeNodeById: async (id) => await axios.delete(`${API_BASE}/connections/${id}`),
 
   // ========== API УСТРОЙСТВ (Devices) ==========
-  
+
   /**
    * GET /api/devices/:id
    * Получить устройство по ID
@@ -96,7 +95,7 @@ export const api = {
   reconnectDeviceById: async (id) => await axios.post(`${API_BASE}/devices/${id}/reconnect`),
 
   // ========== API ИСТОРИЧЕСКИХ ДАННЫХ (History) ==========
-  
+
   /**
    * GET /api/history/system
    * Получить исторические данные для всей системы
@@ -121,7 +120,7 @@ export const api = {
   getHistoryDeviceById: async (id, requestData) => await axios.get(`${API_BASE}/history/device/${id}`, requestData),
 
   // ========== API ТЕГОВ (Tags) ==========
-  
+
   /**
    * GET /api/tags/:id
    * Получить тег по ID
@@ -160,7 +159,7 @@ export const api = {
   writeTagValue: async (id, value) => await axios.post(`${API_BASE}/tags/${id}/write`, {value}),
 
   // ========== API MODBUS MANAGER ==========
-  
+
   /**
    * POST /api/modbus/start
    * Запустить Modbus Manager (начать опрос устройств и сбор данных)
@@ -174,7 +173,7 @@ export const api = {
   stopModbus: async () => await axios.post(`${API_BASE}/modbus/stop`),
 
   // ========== API НАСТРОЕК СИСТЕМЫ (Settings) ==========
-  
+
   /**
    * GET /api/settings/archive-interval
    * Получить текущий интервал архивации данных
@@ -186,5 +185,5 @@ export const api = {
    * Установить интервал архивации данных
    * @param {number} interval - интервал в миллисекундах
    */
-  setArchiveInterval: async (interval) => await axios.put(`${API_BASE}/settings/archive-interval`, { interval }),
+  setArchiveInterval: async (interval) => await axios.put(`${API_BASE}/settings/archive-interval`, {interval}),
 };
