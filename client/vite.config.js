@@ -2,6 +2,7 @@ import {defineConfig, loadEnv} from 'vite'
 import react from '@vitejs/plugin-react'
 import {readFileSync, existsSync} from 'fs'
 import {resolve} from 'path'
+import {networkInterfaces} from 'os'
 
 export default defineConfig(({mode}) => {
   // Загружаем переменные окружения из .env файла
@@ -41,10 +42,36 @@ export default defineConfig(({mode}) => {
     ...(process.env.VITE_API_HOST && { VITE_API_HOST: process.env.VITE_API_HOST })
   };
   
+  // Функция для автоматического определения IP адреса устройства
+  const getLocalIP = () => {
+    const interfaces = networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name]) {
+        // Пропускаем внутренние и неактивные интерфейсы
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+    return null;
+  };
+
   // Определяем HOST из переменных окружения
   // Поддерживаем CLIENT_HOST (удобная переменная) и VITE_API_HOST (стандартная Vite переменная)
-  // Приоритет: CLIENT_HOST из командной строки > VITE_API_HOST из командной строки > CLIENT_HOST из .env > VITE_API_HOST из .env > localhost
-  const HOST = env.CLIENT_HOST || env.VITE_API_HOST || 'localhost';
+  // Если CLIENT_HOST или VITE_API_HOST установлен как 'localhost', заменяем его на автоматически определенный IP
+  // Приоритет: CLIENT_HOST из командной строки > VITE_API_HOST из командной строки > CLIENT_HOST из .env > VITE_API_HOST из .env
+  const autoIP = getLocalIP();
+  let HOST = env.CLIENT_HOST || env.VITE_API_HOST;
+  
+  // Если HOST установлен как 'localhost', заменяем на автоматически определенный IP
+  if (HOST === 'localhost') {
+    HOST = autoIP || 'localhost';
+  }
+  
+  // Если HOST не установлен, используем автоматически определенный IP или localhost
+  if (!HOST) {
+    HOST = autoIP || 'localhost';
+  }
   const BASE = `http://${HOST}:3001`;
   const WS_BASE = `ws://${HOST}:3001`;
   
@@ -57,6 +84,7 @@ export default defineConfig(({mode}) => {
     'VITE_API_HOST (from .env)': envFromFile.VITE_API_HOST || 'not set',
     'VITE_API_HOST (from process.env)': process.env.VITE_API_HOST || 'not set',
     'VITE_API_HOST (final)': env.VITE_API_HOST || 'not set',
+    'Auto-detected IP': autoIP || 'not found',
     finalHOST: HOST
   });
 
