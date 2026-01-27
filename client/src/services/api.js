@@ -12,9 +12,11 @@
 import axios from "axios";
 
 // Настройки подключения к серверу
-// В продакшене используйте переменные окружения или относительные пути
-// export const HOST = '192.168.3.25';
-export const HOST = 'localhost';
+// Можно переопределить через переменные окружения:
+// - VITE_API_HOST (стандартная Vite переменная)
+// - CLIENT_HOST (удобная переменная, обрабатывается в vite.config.js)
+// По умолчанию используется 'localhost'
+export const HOST = import.meta.env.VITE_API_HOST || 'localhost';
 export const BASE = `http://${HOST}:3001`;
 export const API_BASE = `${BASE}/api`;
 export const WS_BASE = `ws://${HOST}:3001`;

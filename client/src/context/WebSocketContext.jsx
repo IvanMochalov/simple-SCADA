@@ -11,8 +11,11 @@
  */
 
 import React, {createContext, useContext, useEffect, useState, useRef} from 'react'
-import axios from 'axios'
-import {api, API_BASE, HOST} from "../services/api.js";
+// HOST берется из api.js, который использует переменные окружения:
+// - VITE_API_HOST (стандартная Vite переменная)
+// - CLIENT_HOST (удобная переменная, обрабатывается в vite.config.js)
+// По умолчанию: 'localhost'
+import {api, HOST} from "../services/api.js";
 import {useNotification} from './NotificationContext.jsx';
 
 const WebSocketContext = createContext(null)
