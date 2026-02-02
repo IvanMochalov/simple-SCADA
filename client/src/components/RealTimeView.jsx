@@ -1,17 +1,17 @@
 /**
  * Компонент отображения данных в реальном времени
- * 
+ *
  * Функциональность:
  * - Отображает текущие значения всех тегов с обновлением через WebSocket
  * - Позволяет запускать/останавливать Modbus Manager
  * - Позволяет редактировать значения тегов с типом доступа 'ReadWrite'
  * - Показывает статусы подключения узлов связи и устройств
  * - Позволяет переподключать устройства при сбоях
- * 
+ *
  * Структура отображения:
  * - Узлы связи → Устройства → Теги (в виде карточек)
  * - Значения тегов обновляются автоматически при получении данных через WebSocket
- * 
+ *
  * Все узлы и устройства развернуты по умолчанию.
  */
 
@@ -42,10 +42,15 @@ import {
   CloseCircleOutlined
 } from '@ant-design/icons';
 import {isNumeric} from "../utils/index.js";
+import {useWindowBreakpoints} from "../hooks/useWindowBreakpoints.js";
 
 const {Title, Text, Paragraph} = Typography;
 
 export default function RealTimeView() {
+  const screens = useWindowBreakpoints()
+  const isMobile = !screens.sm
+  const isTablet = screens.md
+  const isDesktop = screens.lg || screens.xl || screens.xxl
   const notification = useNotification();
   const {state, tagValues, isConnected} = useWebSocket()
   const [expandedNodes, setExpandedNodes] = useState(new Set())
@@ -64,7 +69,7 @@ export default function RealTimeView() {
     if (enabledNodes.length > 0) {
       const allNodeIds = new Set(enabledNodes.map(node => node.id))
       const allDeviceIds = new Set()
-      
+
       enabledNodes.forEach(node => {
         if (node.devices) {
           node.devices.forEach(device => {
@@ -72,7 +77,7 @@ export default function RealTimeView() {
           })
         }
       })
-      
+
       setExpandedNodes(allNodeIds)
       setExpandedDevices(allDeviceIds)
     }
@@ -186,12 +191,12 @@ export default function RealTimeView() {
       scaleFactor = typeof tag.scaleFactor === 'string' ? parseFloat(tag.scaleFactor) : Number(tag.scaleFactor);
       if (isNaN(scaleFactor)) scaleFactor = 1.0;
     }
-    
+
     const allowFloat = tag.serverDataType === 'float' || scaleFactor !== 1.0;
-    
+
     // Заменяем запятую на точку для правильного парсинга
     const normalizedStr = trimmedStr.replace(',', '.');
-    
+
     // Сначала проверяем формат строки, потом парсим
     // Для целых чисел проверяем, что строка содержит только цифры (и минус в начале)
     // Для дробных чисел проверяем, что это валидное число с точкой/запятой
@@ -417,17 +422,21 @@ export default function RealTimeView() {
   }
 
   return (
-    <div className="realtime-view">
+    <React.Fragment>
       <Space orientation="vertical" style={{width: '100%'}} size="large">
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <Title level={2}>Значения тегов в реальном времени</Title>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'start' : 'center',
+          flexDirection: isMobile ? "column" : "row"
+        }}>
+          <Title level={isMobile ? 4 : 2}>Значения тегов в реальном времени</Title>
           <Button
             type={isModbusRunning ? 'danger' : 'primary'}
             icon={isModbusRunning ? <StopOutlined/> : <PlayCircleOutlined/>}
             onClick={handleToggleModbus}
             loading={isToggling}
             disabled={!isConnected}
-            size="large"
           >
             {isModbusRunning ? 'Остановить Modbus Server' : 'Запустить Modbus Server'}
           </Button>
@@ -437,14 +446,17 @@ export default function RealTimeView() {
           {enabledNodes.map(node => (
             <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
               <Collapse
-                styles={{header: {alignItems: "center"}}}
+                styles={{header: {alignItems: "flex-start"}, body: {paddingTop: "0"}}}
                 activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                 onChange={() => toggleNode(node.id)}
                 ghost
                 items={[{
                   key: node.id,
                   label: (
-                    <Space>
+                    <Space style={{
+                      alignItems: isMobile ? "flex-start" : "center",
+                      flexDirection: isMobile ? 'column' : "row",
+                    }}>
                       <Text strong>{node.name}</Text>
                       <Tag color="blue">{node.comPort}</Tag>
                       <Tag
@@ -470,14 +482,21 @@ export default function RealTimeView() {
                         <Card key={device.id} size="small" style={{marginTop: 8}} className="device-card"
                               styles={{body: {padding: "0"}}}>
                           <Collapse
-                            styles={{header: {alignItems: "center"}}}
+                            styles={{header: {alignItems: "flex-start"}}}
                             activeKey={expandedDevices.has(device.id) ? [device.id] : []}
                             onChange={() => toggleDevice(device.id)}
                             items={[{
                               key: device.id,
                               label: (
-                                <Space style={{width: '100%', justifyContent: 'space-between'}}>
-                                  <Space>
+                                <Space style={{
+                                  width: '100%',
+                                  justifyContent: 'space-between',
+                                  alignItems: isMobile ? "flex-start" : "center",
+                                }}>
+                                  <Space style={{
+                                    alignItems: isMobile ? "flex-start" : "center",
+                                    flexDirection: isMobile ? 'column' : "row",
+                                  }}>
                                     <Text strong>{device.name}</Text>
                                     <Tag
                                       color={device.enabled ? 'success' : 'default'}
@@ -520,6 +539,6 @@ export default function RealTimeView() {
         </Space>
       </Space>
 
-    </div>
+    </React.Fragment>
   )
 }

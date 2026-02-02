@@ -1,9 +1,3 @@
-.realtime-view {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 16px;
-}
-
 /* Стили для карточек тегов */
 .realtime-view .tag-card {
   transition: box-shadow 0.2s;

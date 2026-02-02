@@ -1,9 +1,3 @@
-.history-view {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 16px;
-}
-
 /* Оставим только специфичные стили, остальное Ant Design берет на себя */
 .value-cell {
   font-weight: 600;

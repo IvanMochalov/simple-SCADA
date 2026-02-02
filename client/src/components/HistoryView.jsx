@@ -51,10 +51,15 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import {useWindowBreakpoints} from "../hooks/useWindowBreakpoints.js";
 
 const {Title, Text} = Typography;
 
 export default function HistoryView() {
+  const screens = useWindowBreakpoints()
+  const isMobile = !screens.sm
+  const isTablet = screens.md
+  const isDesktop = screens.lg || screens.xl || screens.xxl
   const notification = useNotification();
   const {state, isConnected} = useWebSocket()
   const [form] = Form.useForm()
@@ -431,7 +436,7 @@ export default function HistoryView() {
         dataIndex: 'timestamp',
         key: 'timestamp',
         fixed: 'left',
-        width: 180,
+        width: isMobile ? 90 : 180,
         render: (timestamp) => {
           const date = new Date(timestamp);
           return date.toLocaleString('ru-RU');
@@ -477,7 +482,7 @@ export default function HistoryView() {
             title: tagName,
             dataIndex: `tag_${tagKey}`,
             key: `tag_${tagKey}`,
-            width: 150,
+            width: isMobile ? 75 : 150,
             render: (value) => {
               const formattedValue = formatTagValue(value, tag.serverDataType);
               return (
@@ -580,22 +585,25 @@ export default function HistoryView() {
 
   if (!state || !state?.nodes || state?.nodes?.length === 0) {
     return (
-      <Card className="history-view">
-        <Empty
-          description={
-            <Text type="secondary">
-              Нет узлов связи. Создайте узел связи в разделе "Конфигурация".
-            </Text>
-          }
-        />
-      </Card>
+      <Empty
+        description={
+          <Text type="secondary">
+            Нет узлов связи. Создайте узел связи в разделе "Конфигурация".
+          </Text>
+        }
+      />
     )
   }
 
   return (
-    <div className="history-view">
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24}}>
-        <Title level={2} style={{margin: 0}}>Исторические данные</Title>
+    <React.Fragment>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'start' : 'center',
+        flexDirection: isMobile ? "column" : "row", marginBottom: 24
+      }}>
+        <Title level={isMobile ? 4 : 2}>Исторические данные</Title>
         <Flex gap={"small"}>
           <Button
             icon={<ReloadOutlined/>}
@@ -853,7 +861,7 @@ export default function HistoryView() {
                 showSizeChanger: true,
                 pageSizeOptions: ['10', '20', '50', '100', '200'],
                 showTotal: (total, range) =>
-                  `${range[0]}-${range[1]} из ${total} записей`,
+                  isMobile ? null : `${range[0]}-${range[1]} из ${total} записей`,
               }}
             />
           </div>
@@ -964,6 +972,6 @@ export default function HistoryView() {
           </Row>
         </Card>
       )}
-    </div>
+    </React.Fragment>
   )
 }

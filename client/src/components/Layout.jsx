@@ -1,6 +1,6 @@
 /**
  * Основной layout приложения
- * 
+ *
  * Содержит:
  * - Заголовок с названием системы
  * - Индикатор статуса подключения к серверу
@@ -15,12 +15,15 @@ import {SettingOutlined} from '@ant-design/icons'
 import {useWebSocket} from '../context/WebSocketContext'
 import {api} from '../services/api'
 import {useNotification} from '../context/NotificationContext'
+import {useWindowBreakpoints} from '../hooks/useWindowBreakpoints'
 
 const {Header, Content} = AntLayout
 const {Title} = Typography
 
 export default function Layout() {
   const location = useLocation()
+  const screens = useWindowBreakpoints()
+  const isMobile = !screens.sm
   const navigate = useNavigate()
   const {isConnected, state} = useWebSocket()
   const notification = useNotification()
@@ -40,7 +43,7 @@ export default function Layout() {
     try {
       const {data} = await api.getArchiveInterval()
       setArchiveInterval(data.interval)
-      form.setFieldsValue({ interval: data.interval })
+      form.setFieldsValue({interval: data.interval})
     } catch (error) {
       console.error('Error loading archive interval:', error)
       notification.error('Ошибка загрузки настроек', error.message || '')
@@ -74,11 +77,11 @@ export default function Layout() {
 
   // Варианты интервала архивации
   const archiveIntervalOptions = [
-    { value: 5000, label: '5 секунд' },
-    { value: 10000, label: '10 секунд' },
-    { value: 30000, label: '30 секунд' },
-    { value: 60000, label: 'Минута' },
-    { value: 300000, label: '5 минут' },
+    {value: 5000, label: '5 секунд'},
+    {value: 10000, label: '10 секунд'},
+    {value: 30000, label: '30 секунд'},
+    {value: 60000, label: 'Минута'},
+    {value: 300000, label: '5 минут'},
   ]
 
   const getSelectedKey = () => {
@@ -113,24 +116,29 @@ export default function Layout() {
     }
   }
 
+  const getConnectStatusText = () => {
+    if (isMobile) return null;
+    return isConnected ? 'Подключено' : 'Отключено'
+  }
+
   return (
     <AntLayout className="layout" style={{minHeight: '100vh'}}>
       <Header style={{
         background: '#001529',
-        padding: '0 24px',
+        padding: isMobile ? "0 10px" : '0 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between'
       }}>
-        <Title level={3} style={{color: '#fff', margin: 0, fontSize: '20px'}}>
+        <Title level={3} style={{color: '#fff', margin: 0, fontSize: isMobile ? "14px" : '20px'}}>
           Система диспетчерского управления
         </Title>
         <Space>
-          <Badge status={isConnected ? 'success' : 'error'} text={isConnected ? 'Подключено' : 'Отключено'}
+          <Badge status={isConnected ? 'success' : 'error'} text={getConnectStatusText()}
                  style={{color: '#fff'}}/>
           <Button
             type="text"
-            icon={<SettingOutlined />}
+            icon={<SettingOutlined/>}
             onClick={() => setSettingsModalVisible(true)}
             style={{color: '#fff'}}
             title="Настройки системы"
@@ -143,10 +151,22 @@ export default function Layout() {
         selectedKeys={getSelectedKey()}
         items={menuItems}
         onClick={handleMenuClick}
-        style={{lineHeight: '64px'}}
+        style={{lineHeight: isMobile ? "48px" : '64px'}}
       />
-      <Content style={{padding: '24px', background: '#f0f2f5', flex: 1}}>
-        <Outlet/>
+      <Content style={{
+        background: '#f0f2f5',
+        display: 'flex',
+        alignItems: 'start',
+        justifyContent: 'center'
+      }}>
+        <div style={{
+          padding: isMobile ? "10px" : '24px',
+          width: '100%',
+          maxWidth: "1600px",
+          minWidth: "336px"
+        }}>
+          <Outlet/>
+        </div>
       </Content>
 
       <Modal
@@ -161,7 +181,7 @@ export default function Layout() {
         <Form
           form={form}
           layout="vertical"
-          initialValues={{ interval: archiveInterval }}
+          initialValues={{interval: archiveInterval}}
         >
           <Form.Item
             name="interval"

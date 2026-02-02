@@ -1,16 +1,16 @@
 /**
  * Компонент конфигурации системы
- * 
+ *
  * Отображает иерархическую структуру:
  * - Узлы связи (Connection Nodes) - COM порты
  * - Устройства (Devices) - Modbus устройства
  * - Теги (Tags) - регистры Modbus
- * 
+ *
  * Позволяет:
  * - Создавать, редактировать и удалять узлы связи, устройства и теги
  * - Просматривать статусы включения/выключения элементов
  * - Управлять конфигурацией через формы (ConnectionNodeForm, DeviceForm, TagForm)
- * 
+ *
  * Все узлы и устройства развернуты по умолчанию для удобства навигации.
  */
 
@@ -29,7 +29,9 @@ import {
   Empty,
   Space,
   Modal,
-  Tooltip, Alert
+  Tooltip,
+  Alert,
+  Dropdown
 } from 'antd';
 import {
   AppstoreAddOutlined,
@@ -37,15 +39,21 @@ import {
   PlusOutlined,
   DeleteOutlined,
   CheckCircleOutlined,
-  CloseCircleOutlined
+  CloseCircleOutlined,
+  EllipsisOutlined
 } from '@ant-design/icons';
 import {useNotification} from "../context/NotificationContext.jsx";
+import {useWindowBreakpoints} from "../hooks/useWindowBreakpoints.js";
 
 const {Title, Text} = Typography;
 const {confirm} = Modal;
 
 
 export default function ConnectionTree() {
+  const screens = useWindowBreakpoints()
+  const isMobile = !screens.sm
+  const isTablet = screens.md
+  const isDesktop = screens.lg || screens.xl || screens.xxl
   const notification = useNotification();
   const {state, refreshState, isConnected} = useWebSocket()
   const [nodes, setNodes] = useState([])
@@ -73,7 +81,7 @@ export default function ConnectionTree() {
     if (nodes.length > 0) {
       const allNodeIds = new Set(nodes.map(node => node.id))
       const allDeviceIds = new Set()
-      
+
       nodes.forEach(node => {
         if (node.devices) {
           node.devices.forEach(device => {
@@ -81,7 +89,7 @@ export default function ConnectionTree() {
           })
         }
       })
-      
+
       setExpandedNodes(allNodeIds)
       setExpandedDevices(allDeviceIds)
     }
@@ -190,10 +198,15 @@ export default function ConnectionTree() {
   }
 
   return (
-    <div style={{maxWidth: "1200px", margin: "0 auto", padding: "16px"}}>
+    <React.Fragment>
       <Space orientation="vertical" style={{width: '100%'}} size="large">
-        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-          <Title level={2}>Конфигурация узлов связи</Title>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: isMobile ? 'start' : 'center',
+          flexDirection: isMobile ? "column" : "row"
+        }}>
+          <Title level={isMobile ? 4 : 2}>Конфигурация узлов связи</Title>
           <Button
             type="primary"
             onClick={() => {
@@ -213,53 +226,99 @@ export default function ConnectionTree() {
             {nodes.map(node => (
               <Card key={node.id} size="small" styles={{body: {padding: "0"}}}>
                 <Collapse
-                  styles={{header: {alignItems: "center"}, body: {paddingTop: "0"}}}
+                  styles={{header: {alignItems: "flex-start"}, body: {paddingTop: "0"}}}
                   activeKey={expandedNodes.has(node.id) ? [node.id] : []}
                   onChange={() => toggleNode(node.id)}
                   ghost
                   items={[{
                     key: node.id,
                     label: (
-                      <Space style={{width: '100%', justifyContent: 'space-between'}}>
-                        <Space>
+                      <Space style={{
+                        width: '100%',
+                        justifyContent: 'space-between',
+                        alignItems: isMobile ? "flex-start" : "center",
+                      }}>
+                        <Space style={{
+                          alignItems: isMobile ? "flex-start" : "center",
+                          flexDirection: isMobile ? 'column' : "row",
+                        }}>
                           <Text strong>{node.name}</Text>
                           <Tag color="blue">{node.comPort}</Tag>
                           <Tag
                             color={node.enabled ? 'success' : 'default'}
                             icon={node.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
                           >
-                            {node.enabled ? 'Включен' : 'Не включен'}
+                            {node.enabled ? 'Включен в работу' : 'Не включен в работу'}
                           </Tag>
                         </Space>
                         <Space onClick={(e) => e.stopPropagation()}>
-                          <Tooltip title="Редактировать узел связи">
-                            <Button
-                              type="text"
-                              icon={<EditOutlined/>}
-                              onClick={() => {
-                                setSelectedNodeId(node.id)
-                                setShowNodeForm(true)
+                          {isMobile ? (
+                            <Dropdown
+                              menu={{
+                                items: [
+                                  {
+                                    key: 'edit',
+                                    label: 'Редактировать узел связи',
+                                    icon: <EditOutlined/>,
+                                    onClick: () => {
+                                      setSelectedNodeId(node.id)
+                                      setShowNodeForm(true)
+                                    }
+                                  },
+                                  {
+                                    key: 'add',
+                                    label: 'Добавить устройство',
+                                    icon: <PlusOutlined/>,
+                                    onClick: () => {
+                                      setSelectedNodeId(node.id)
+                                      setShowDeviceForm(true)
+                                    }
+                                  },
+                                  {
+                                    key: 'delete',
+                                    label: 'Удалить узел связи',
+                                    icon: <DeleteOutlined/>,
+                                    danger: true,
+                                    onClick: () => handleDeleteNode(node.id)
+                                  }
+                                ]
                               }}
-                            />
-                          </Tooltip>
-                          <Tooltip title="Добавить устройство">
-                            <Button
-                              type="text"
-                              icon={<PlusOutlined/>}
-                              onClick={() => {
-                                setSelectedNodeId(node.id)
-                                setShowDeviceForm(true)
-                              }}
-                            />
-                          </Tooltip>
-                          <Tooltip title="Удалить узел связи">
-                            <Button
-                              type="text"
-                              danger
-                              icon={<DeleteOutlined/>}
-                              onClick={() => handleDeleteNode(node.id)}
-                            />
-                          </Tooltip>
+                              trigger={['click']}
+                            >
+                              <Button type="text" icon={<EllipsisOutlined/>}/>
+                            </Dropdown>
+                          ) : (
+                            <>
+                              <Tooltip title="Редактировать узел связи">
+                                <Button
+                                  type="text"
+                                  icon={<EditOutlined/>}
+                                  onClick={() => {
+                                    setSelectedNodeId(node.id)
+                                    setShowNodeForm(true)
+                                  }}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Добавить устройство">
+                                <Button
+                                  type="text"
+                                  icon={<PlusOutlined/>}
+                                  onClick={() => {
+                                    setSelectedNodeId(node.id)
+                                    setShowDeviceForm(true)
+                                  }}
+                                />
+                              </Tooltip>
+                              <Tooltip title="Удалить узел связи">
+                                <Button
+                                  type="text"
+                                  danger
+                                  icon={<DeleteOutlined/>}
+                                  onClick={() => handleDeleteNode(node.id)}
+                                />
+                              </Tooltip>
+                            </>
+                          )}
                         </Space>
                       </Space>
                     ),
@@ -270,53 +329,101 @@ export default function ConnectionTree() {
                         {node.devices.map(device => (
                           <Card key={device.id} size="small" style={{marginTop: 8}} styles={{body: {padding: "0"}}}>
                             <Collapse
-                              styles={{header: {alignItems: "center"}}}
+                              styles={{header: {alignItems: "flex-start"}}}
                               activeKey={expandedDevices.has(device.id) ? [device.id] : []}
                               onChange={() => toggleDevice(device.id)}
                               items={[{
                                 key: device.id,
                                 label: (
-                                  <Space style={{width: '100%', justifyContent: 'space-between'}}>
-                                    <Space>
+                                  <Space style={{
+                                    width: '100%',
+                                    justifyContent: 'space-between',
+                                    alignItems: isMobile ? "flex-start" : "center",
+                                  }}>
+                                    <Space style={{
+                                      alignItems: isMobile ? "flex-start" : "center",
+                                      flexDirection: isMobile ? 'column' : "row",
+                                    }}>
                                       <Text strong>{device.name}</Text>
                                       <Tag
                                         color={device.enabled ? 'success' : 'default'}
                                         icon={device.enabled ? <CheckCircleOutlined/> : <CloseCircleOutlined/>}
                                       >
-                                        {device.enabled ? 'Включен' : 'Не включен'}
+                                        {device.enabled ? 'Включен в работу' : 'Не включен в работу'}
                                       </Tag>
                                     </Space>
                                     <Space onClick={(e) => e.stopPropagation()}>
-                                      <Tooltip title="Редактировать устройство">
-                                        <Button
-                                          type="text"
-                                          icon={<EditOutlined/>}
-                                          onClick={() => {
-                                            setSelectedDeviceId(device.id)
-                                            setSelectedNodeId(node.id)
-                                            setShowDeviceForm(true)
+                                      {isMobile ? (
+                                        <Dropdown
+                                          menu={{
+                                            items: [
+                                              {
+                                                key: 'edit',
+                                                label: 'Редактировать устройство',
+                                                icon: <EditOutlined/>,
+                                                onClick: () => {
+                                                  setSelectedDeviceId(device.id)
+                                                  setSelectedNodeId(node.id)
+                                                  setShowDeviceForm(true)
+                                                }
+                                              },
+                                              {
+                                                key: 'add',
+                                                label: 'Добавить тег',
+                                                icon: <PlusOutlined/>,
+                                                onClick: () => {
+                                                  setSelectedDeviceId(device.id)
+                                                  setSelectedNodeId(node.id)
+                                                  setShowTagForm(true)
+                                                }
+                                              },
+                                              {
+                                                key: 'delete',
+                                                label: 'Удалить устройство',
+                                                icon: <DeleteOutlined/>,
+                                                danger: true,
+                                                onClick: () => handleDeleteDevice(device.id, node.id)
+                                              }
+                                            ]
                                           }}
-                                        />
-                                      </Tooltip>
-                                      <Tooltip title="Добавить тег">
-                                        <Button
-                                          type="text"
-                                          icon={<PlusOutlined/>}
-                                          onClick={() => {
-                                            setSelectedDeviceId(device.id)
-                                            setSelectedNodeId(node.id)
-                                            setShowTagForm(true)
-                                          }}
-                                        />
-                                      </Tooltip>
-                                      <Tooltip title="Удалить устройство">
-                                        <Button
-                                          type="text"
-                                          danger
-                                          icon={<DeleteOutlined/>}
-                                          onClick={() => handleDeleteDevice(device.id, node.id)}
-                                        />
-                                      </Tooltip>
+                                          trigger={['click']}
+                                        >
+                                          <Button type="text" icon={<EllipsisOutlined/>}/>
+                                        </Dropdown>
+                                      ) : (
+                                        <>
+                                          <Tooltip title="Редактировать устройство">
+                                            <Button
+                                              type="text"
+                                              icon={<EditOutlined/>}
+                                              onClick={() => {
+                                                setSelectedDeviceId(device.id)
+                                                setSelectedNodeId(node.id)
+                                                setShowDeviceForm(true)
+                                              }}
+                                            />
+                                          </Tooltip>
+                                          <Tooltip title="Добавить тег">
+                                            <Button
+                                              type="text"
+                                              icon={<PlusOutlined/>}
+                                              onClick={() => {
+                                                setSelectedDeviceId(device.id)
+                                                setSelectedNodeId(node.id)
+                                                setShowTagForm(true)
+                                              }}
+                                            />
+                                          </Tooltip>
+                                          <Tooltip title="Удалить устройство">
+                                            <Button
+                                              type="text"
+                                              danger
+                                              icon={<DeleteOutlined/>}
+                                              onClick={() => handleDeleteDevice(device.id, node.id)}
+                                            />
+                                          </Tooltip>
+                                        </>
+                                      )}
                                     </Space>
                                   </Space>
                                 ),
@@ -326,9 +433,17 @@ export default function ConnectionTree() {
                                   <Space orientation="vertical" style={{width: '100%'}} size="small">
                                     {device.tags.map(tag => (
                                       <Card key={tag.id} size="small" style={{background: '#fafafa'}}>
-                                        <Space style={{width: '100%', justifyContent: 'space-between'}}>
+                                        <Space style={{
+                                          width: '100%',
+                                          justifyContent: 'space-between',
+                                          alignItems: isMobile ? "start" : "center"
+                                        }}>
                                           <Space orientation="vertical" size={0}>
-                                            <Space>
+                                            <Space style={{
+                                              width: '100%',
+                                              justifyContent: 'space-between',
+                                              alignItems: isMobile ? "start" : "center"
+                                            }}>
                                               <Text strong>{tag.name}</Text>
                                               <Tag
                                                 color={tag.enabled ? 'success' : 'default'}
@@ -343,26 +458,58 @@ export default function ConnectionTree() {
                                             </Text>
                                           </Space>
                                           <Space onClick={(e) => e.stopPropagation()}>
-                                            <Tooltip title="Редактировать тег">
-                                              <Button
-                                                type="text"
-                                                icon={<EditOutlined/>}
-                                                onClick={() => {
-                                                  setSelectedTagId(tag.id)
-                                                  setSelectedDeviceId(device.id)
-                                                  setSelectedNodeId(node.id)
-                                                  setShowTagForm(true)
+                                            {isMobile ? (
+                                              <Dropdown
+                                                menu={{
+                                                  items: [
+                                                    {
+                                                      key: 'edit',
+                                                      label: 'Редактировать тег',
+                                                      icon: <EditOutlined/>,
+                                                      onClick: () => {
+                                                        setSelectedTagId(tag.id)
+                                                        setSelectedDeviceId(device.id)
+                                                        setSelectedNodeId(node.id)
+                                                        setShowTagForm(true)
+                                                      }
+                                                    },
+                                                    {
+                                                      key: 'delete',
+                                                      label: 'Удалить тег',
+                                                      icon: <DeleteOutlined/>,
+                                                      danger: true,
+                                                      onClick: () => handleDeleteTag(tag.id, device.id)
+                                                    }
+                                                  ]
                                                 }}
-                                              />
-                                            </Tooltip>
-                                            <Tooltip title="Удалить тег">
-                                              <Button
-                                                type="text"
-                                                danger
-                                                icon={<DeleteOutlined/>}
-                                                onClick={() => handleDeleteTag(tag.id, device.id)}
-                                              />
-                                            </Tooltip>
+                                                trigger={['click']}
+                                              >
+                                                <Button type="text" icon={<EllipsisOutlined/>}/>
+                                              </Dropdown>
+                                            ) : (
+                                              <>
+                                                <Tooltip title="Редактировать тег">
+                                                  <Button
+                                                    type="text"
+                                                    icon={<EditOutlined/>}
+                                                    onClick={() => {
+                                                      setSelectedTagId(tag.id)
+                                                      setSelectedDeviceId(device.id)
+                                                      setSelectedNodeId(node.id)
+                                                      setShowTagForm(true)
+                                                    }}
+                                                  />
+                                                </Tooltip>
+                                                <Tooltip title="Удалить тег">
+                                                  <Button
+                                                    type="text"
+                                                    danger
+                                                    icon={<DeleteOutlined/>}
+                                                    onClick={() => handleDeleteTag(tag.id, device.id)}
+                                                  />
+                                                </Tooltip>
+                                              </>
+                                            )}
                                           </Space>
                                         </Space>
                                       </Card>
@@ -433,6 +580,6 @@ export default function ConnectionTree() {
           }}
         />
       )}
-    </div>
+    </React.Fragment>
   )
 }
