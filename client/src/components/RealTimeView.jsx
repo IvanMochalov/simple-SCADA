@@ -505,7 +505,7 @@ export default function RealTimeView() {
                                       {device.enabled ? 'Включен в работу' : 'Не включен'}
                                     </Tag>
                                   </Space>
-                                  {device.enabled && (
+                                  {device.enabled && isModbusRunning && (
                                     <Tooltip title="Переподключить устройство">
                                       <Button
                                         type="text"
