@@ -459,15 +459,6 @@ export class ModbusManager {
     }
   }
 
-  startDevicePolling(device, client) {
-    // Этот метод теперь используется только при переподключении устройства
-    // Основной опрос идет через pollNodeDevices
-    // Для обратной совместимости можно запустить единичный опрос
-    setTimeout(async () => {
-      await this.pollDevice(device, client);
-    }, 100);
-  }
-
   stopDevicePolling(deviceId) {
     // Останавливаем интервал для устройства (если используется старый подход)
     const interval = this.pollingIntervals.get(deviceId);
@@ -906,7 +897,6 @@ export class ModbusManager {
           // Обновляем устройство в connection.devices
           // Опрос будет выполняться через pollNodeDevices автоматически
           connection.devices.set(device.id, updatedDevice);
-          // Не нужно вызывать startDevicePolling, так как опрос идет через единый интервал узла
         }
       }
     } catch (error) {
@@ -1326,7 +1316,6 @@ export class ModbusManager {
         // Обновляем устройство в connection.devices
         // Опрос будет выполняться через pollNodeDevices автоматически
         connection.devices.set(deviceId, updatedDevice);
-        // Не нужно вызывать startDevicePolling, так как опрос идет через единый интервал узла
       } else {
         console.log(`Device ${displayDeviceName} is disabled or has no enabled tags`);
       }
