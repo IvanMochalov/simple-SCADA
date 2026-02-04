@@ -352,6 +352,7 @@ export default function RealTimeView() {
                 onChange: (str) => handleTagValueChange(tag, tagValue, str),
                 tooltip: 'Нажмите для редактирования'
               }}
+              style={{fontSize: '2rem'}}
               className={"tag-value"}
             >
               {formatTagValue(tagValue.value, tag.serverDataType)}
